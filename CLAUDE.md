@@ -1,63 +1,63 @@
 # CLAUDE.md
 
-This file provides guidance for AI assistants (Claude and others) working in this repository.
+ไฟล์นี้ให้คำแนะนำสำหรับ AI assistant (Claude และอื่น ๆ) ที่ทำงานในรีโพซิทอรีนี้
 
-## Repository Status
+## สถานะรีโพซิทอรี
 
-This repository is currently in its initial state. It was created on March 26, 2026, and contains only a `.gitkeep` placeholder. No application code, framework, or tooling has been added yet.
+รีโพซิทอรีนี้อยู่ในสถานะเริ่มต้น สร้างขึ้นเมื่อวันที่ 26 มีนาคม 2026 และมีเพียงไฟล์ placeholder `.gitkeep` เท่านั้น ยังไม่มีโค้ดแอปพลิเคชัน เฟรมเวิร์ก หรือเครื่องมือใด ๆ ถูกเพิ่มเข้ามา
 
-## Repository Info
+## ข้อมูลรีโพซิทอรี
 
 - **Remote**: `nustanakritwithai/Hih` (GitHub)
-- **Default branch**: `main`
-- **Development branches**: Follow the `claude/<description>` naming convention (e.g., `claude/add-claude-documentation-EZekt`)
+- **Branch หลัก**: `main`
+- **Branch สำหรับพัฒนา**: ใช้รูปแบบ `claude/<คำอธิบาย>` (เช่น `claude/add-claude-documentation-EZekt`)
 
-## Git Workflow
+## ขั้นตอนการใช้ Git
 
-- All feature work should be developed on a dedicated branch, never directly on `main`
-- Branch names use the format: `claude/<short-description>` for AI-assisted work
-- Commit messages should be clear and descriptive, focused on the "why" not just the "what"
-- Push branches with `git push -u origin <branch-name>`
-- Do NOT push to `main` without explicit user permission
+- งานทุกชิ้นต้องพัฒนาบน branch ที่แยกออกมา ห้ามทำงานตรงบน `main`
+- ชื่อ branch ใช้รูปแบบ `claude/<คำอธิบายสั้น ๆ>` สำหรับงานที่ AI ช่วย
+- ข้อความ commit ควรชัดเจนและอธิบายได้ว่า "ทำไม" ไม่ใช่แค่ "ทำอะไร"
+- Push branch ด้วยคำสั่ง `git push -u origin <ชื่อ-branch>`
+- ห้าม push ไปที่ `main` โดยไม่ได้รับอนุญาตจากผู้ใช้
 
-## Conventions for AI Assistants
+## แนวทางสำหรับ AI Assistant
 
-### Before Making Changes
-- Read existing files before editing them
-- Understand the current structure before adding to it
-- Don't create files unless they are necessary for the task
+### ก่อนแก้ไขโค้ด
+- อ่านไฟล์ที่มีอยู่ก่อนแก้ไขเสมอ
+- ทำความเข้าใจโครงสร้างปัจจุบันก่อนเพิ่มสิ่งใหม่
+- ไม่สร้างไฟล์เว้นแต่จำเป็นจริง ๆ สำหรับงานนั้น
 
-### Code Style
-- Follow the conventions already established in the codebase (when code exists)
-- Do not add unnecessary comments, docstrings, or type annotations to code you didn't change
-- Avoid speculative abstractions — implement only what the task requires
-- Do not introduce security vulnerabilities (injection, XSS, etc.)
+### สไตล์โค้ด
+- ทำตาม convention ที่มีอยู่แล้วในโค้ดเบส (เมื่อมีโค้ดแล้ว)
+- ไม่เพิ่ม comment, docstring หรือ type annotation ในโค้ดที่ไม่ได้แก้ไข
+- หลีกเลี่ยงการสร้าง abstraction เกินความจำเป็น — เขียนเฉพาะที่งานต้องการ
+- ไม่เขียนโค้ดที่มีช่องโหว่ด้านความปลอดภัย (injection, XSS เป็นต้น)
 
-### File Management
-- Prefer editing existing files over creating new ones
-- Do not create README files or documentation unless explicitly requested
-- Do not add backwards-compatibility shims or feature flags unless needed
+### การจัดการไฟล์
+- ให้แก้ไขไฟล์ที่มีอยู่แล้วแทนการสร้างไฟล์ใหม่
+- ไม่สร้างไฟล์ README หรือเอกสารเว้นแต่ผู้ใช้ขอโดยตรง
+- ไม่เพิ่ม backwards-compatibility shim หรือ feature flag โดยไม่จำเป็น
 
-### Testing
-- Run existing tests before and after making changes (when tests exist)
-- Do not skip or bypass test hooks
+### การทดสอบ
+- รัน test ที่มีอยู่ก่อนและหลังแก้ไข (เมื่อมี test แล้ว)
+- ไม่ข้ามหรือ bypass test hook
 
-### Risky Actions — Always Confirm First
-The following require explicit user confirmation before proceeding:
-- Deleting files or directories
-- Force-pushing any branch
-- `git reset --hard` or other destructive git operations
-- Pushing to `main`
-- Modifying CI/CD pipelines
-- Any action visible to others (posting comments, creating PRs)
+### การกระทำที่มีความเสี่ยง — ต้องขอยืนยันก่อนเสมอ
+สิ่งต่อไปนี้ต้องได้รับการยืนยันจากผู้ใช้อย่างชัดเจนก่อนดำเนินการ:
+- ลบไฟล์หรือโฟลเดอร์
+- Force push branch ใด ๆ
+- `git reset --hard` หรือ git command ที่ทำลายข้อมูล
+- Push ไปที่ `main`
+- แก้ไข CI/CD pipeline
+- การกระทำที่คนอื่นเห็นได้ (โพสต์ comment, สร้าง PR)
 
-## Updating This File
+## การอัปเดตไฟล์นี้
 
-When the project gains a defined technology stack, framework, or tooling, update this file to include:
-- Technology stack and key dependencies
-- How to install dependencies
-- How to run the development server
-- How to run tests
-- Environment variables required (with an `.env.example` reference)
-- Build and deployment instructions
-- Linting and formatting commands
+เมื่อโปรเจกต์มี technology stack, เฟรมเวิร์ก หรือเครื่องมือที่ชัดเจนแล้ว ให้อัปเดตไฟล์นี้ให้ครอบคลุม:
+- Technology stack และ dependency หลัก
+- วิธีติดตั้ง dependency
+- วิธีรัน development server
+- วิธีรัน test
+- Environment variable ที่ต้องการ (พร้อม reference ถึง `.env.example`)
+- คำสั่ง build และ deploy
+- คำสั่ง linting และ formatting
