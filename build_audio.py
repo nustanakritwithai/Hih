@@ -17,14 +17,22 @@ import pythaitts.pretrained.lunarlist_onnx as llo
 llo.hf_hub_download = _local
 
 from pythaitts import TTS
+import pythaitts.pretrained.lunarlist_onnx as _llo
+
+_ALLOWED = set(_llo.index_list)
+
+
+def sanitize(text):
+    return "".join(c for c in text if c in _ALLOWED)
+
 
 LINES = [
-    "สวัสดีครับ วันนี้จะมาสอน วิธีทำคลิปโซเชียลแนวตั้ง ด้วยคล็อดดีไซน์ แบบง่าย สวย เสร็จไว",
-    "ขั้นตอนที่หนึ่ง บอกคล็อดว่า อยากได้คลิปแบบไหน พิมพ์ไอเดีย ธีม และความยาว",
-    "ขั้นตอนที่สอง เลือกอัตราส่วน เก้าต่อสิบหก ให้เหมาะกับ ติ๊กต๊อก รีล และ ชอร์ต",
-    "ขั้นตอนที่สาม ใส่เนื้อหา ข้อความบรรยาย เลือกฟอนต์ สี และภาพประกอบ ตามสไตล์ของคุณ",
-    "ขั้นตอนที่สี่ กดส่งออกเป็นไฟล์ เอ็มพีสี่ ขนาด หนึ่งพันแปดสิบ คูณ หนึ่งพันเก้าร้อยยี่สิบ",
-    "ถ้าชอบคลิปนี้ อย่าลืมกดไลก์ และ กดติดตาม เจอกันใหม่ คลิปหน้าครับ",
+    "เฮ อยากทำคลิปโซเชียลสวยๆ ใน หนึ่ง นาทีมั้ย วันนี้คล็อดดีไซน์ มาช่วยแล้ว",
+    "ขั้นตอนแรก แค่บอกคล็อด ว่าอยากได้คลิปแบบไหน พิมพ์ธีมแล้วรอเลย",
+    "สอง เลือกแนวตั้ง เก้าต่อสิบหก เหมาะกับ ติ๊กต๊อก รีล และ ชอร์ต เป๊ะมาก",
+    "สาม ใส่ข้อความบรรยาย ฟอนต์ สี ภาพประกอบ สวย ปังในไม่กี่คลิก",
+    "สี่ กดส่งออก เป็นไฟล์วิดีโอ แล้วโพสต์ได้เลย ทุกแพลตฟอร์ม",
+    "ถ้าชอบ อย่าลืมกดไลก์ กดติดตาม แล้วเจอกัน คลิปหน้าเลยนะ",
 ]
 
 
@@ -58,15 +66,29 @@ tts = TTS(pretrained="lunarlist_onnx")
 for i, text in enumerate(LINES, 1):
     raw = f"{AUDIO}/raw{i}.wav"
     fit = f"{AUDIO}/fit{i}.wav"
-    tts.tts(text=text, filename=raw, return_type="file")
+    tts.tts(text=sanitize(text), filename=raw, return_type="file")
     d = duration(raw)
-    # Slow fast TTS; aim for 6-9s per line but don't stretch more than 2x
-    target = 7.5
-    ratio = max(0.5, min(2.0, d / target))
-    chain = atempo_chain(ratio)
-    run(["ffmpeg", "-y", "-i", raw,
-         "-af", f"{chain},highpass=f=80,lowpass=f=7500,loudnorm=I=-16:TP=-1.5:LRA=11",
-         fit, "-loglevel", "error"])
+    # Energetic voice: pitch up ~8%, slightly faster, punchy compression
+    target = 6.5
+    raw_ratio = max(0.5, min(2.0, d / target))
+    rate_ratio = raw_ratio
+    tempo_chain = atempo_chain(rate_ratio)
+    # Pitch shift +8%: asetrate * 1.08 then atempo / 1.08 to preserve timing
+    pitch = 1.08
+    sr_in = 22050
+    sr_up = int(sr_in * pitch)
+    af = (
+        f"asetrate={sr_up},aresample=44100,atempo={1/pitch:.4f},"
+        f"{tempo_chain},"
+        "highpass=f=90,"
+        "equalizer=f=180:t=q:w=1:g=-2,"
+        "equalizer=f=3000:t=q:w=1:g=4,"
+        "equalizer=f=6000:t=q:w=1:g=3,"
+        "acompressor=threshold=-18dB:ratio=4:attack=5:release=80:makeup=3,"
+        "aecho=0.6:0.4:30:0.08,"
+        "loudnorm=I=-14:TP=-1:LRA=9"
+    )
+    run(["ffmpeg", "-y", "-i", raw, "-af", af, fit, "-loglevel", "error"])
     print(f"line{i}: {d:.2f}s -> {duration(fit):.2f}s")
 
 # Combine on 60s timeline: each scene starts at n*10s + 0.3s padding
