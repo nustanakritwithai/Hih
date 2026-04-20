@@ -1,4 +1,5 @@
 frames/
 audio/
+models/
 __pycache__/
 *.pyc

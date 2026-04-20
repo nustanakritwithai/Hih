@@ -24,11 +24,24 @@
 
 ## ไฟล์วิดีโอ
 
-- `clip.mp4` — คลิปพร้อมโพสต์ 9:16 / 1080×1920 / 30fps / 60s · **มีเสียงบรรยายไทย (espeak-ng)**
-- `clip_silent.mp4` — เวอร์ชันไม่มีเสียง (สำหรับใส่เสียงใหม่)
+- `clip.mp4` — คลิปพร้อมโพสต์ 9:16 / 1080×1920 / 30fps / 60s · **เสียงบรรยายไทย (Neural Tacotron2 + HiFi-GAN)**
+- `clip_silent.mp4` — เวอร์ชันไม่มีเสียง
 - `clip.html` — สตอรี่บอร์ดเวอร์ชันเว็บ
 - `build_mp4.py` — สคริปต์สร้างภาพแต่ละฉากด้วย Pillow
-- `build_audio.sh` — สคริปต์สร้างเสียงบรรยายไทยด้วย espeak-ng
+- `build_audio.py` — สคริปต์สร้างเสียงบรรยายด้วย PyThaiTTS (lunarlist ONNX)
+- `build_audio.sh` — สคริปต์เสียงเวอร์ชันเก่า (espeak-ng)
+
+## ติดตั้งสำหรับสร้างเสียงใหม่
+
+```bash
+pip install pythaitts onnxruntime
+mkdir -p models && cd models
+for f in tacotron2encoder-th.onnx tacotron2decoder-th.onnx \
+         tacotron2postnet-th.onnx vocoder.onnx; do
+  curl -LO "https://github.com/PyThaiNLP/thaitts-onnx/releases/download/export/$f"
+done
+cd .. && python3 build_audio.py
+```
 
 ## วิธีสร้าง MP4 ใหม่
 
