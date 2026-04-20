@@ -27,12 +27,12 @@ def sanitize(text):
 
 
 LINES = [
-    "เฮ อยากทำคลิปโซเชียลสวยๆ ใน หนึ่ง นาทีมั้ย วันนี้คล็อดดีไซน์ มาช่วยแล้ว",
-    "ขั้นตอนแรก แค่บอกคล็อด ว่าอยากได้คลิปแบบไหน พิมพ์ธีมแล้วรอเลย",
-    "สอง เลือกแนวตั้ง เก้าต่อสิบหก เหมาะกับ ติ๊กต๊อก รีล และ ชอร์ต เป๊ะมาก",
-    "สาม ใส่ข้อความบรรยาย ฟอนต์ สี ภาพประกอบ สวย ปังในไม่กี่คลิก",
-    "สี่ กดส่งออก เป็นไฟล์วิดีโอ แล้วโพสต์ได้เลย ทุกแพลตฟอร์ม",
-    "ถ้าชอบ อย่าลืมกดไลก์ กดติดตาม แล้วเจอกัน คลิปหน้าเลยนะ",
+    "สวัสดีครับ วันนี้เราจะมาเรียนรู้ วิธีสร้างคลิปโซเชียลแนวตั้ง ด้วยคล็อดดีไซน์ อย่างถูกวิธี",
+    "ขั้นตอนแรก ระบุสิ่งที่ต้องการ กับคล็อดให้ชัดเจน ทั้งธีม เนื้อหา และความยาวที่ต้องการ",
+    "ขั้นตอนที่สอง กำหนดอัตราส่วนภาพ เป็นเก้าต่อสิบหก ซึ่งเหมาะกับการแสดงผล บนแพลตฟอร์มโซเชียล",
+    "ขั้นตอนที่สาม ปรับแต่งองค์ประกอบ ทั้งข้อความ ฟอนต์ สี และภาพประกอบ ให้สอดคล้องกับเนื้อหา",
+    "ขั้นตอนที่สี่ ส่งออกผลงานเป็นไฟล์วิดีโอ เพื่อใช้เผยแพร่บนแพลตฟอร์มต่างๆ",
+    "หากท่านเห็นว่าข้อมูลนี้ มีประโยชน์ ขอเชิญติดตามเพื่อรับเนื้อหา ในลำดับต่อไปครับ",
 ]
 
 
@@ -68,19 +68,24 @@ for i, text in enumerate(LINES, 1):
     fit = f"{AUDIO}/fit{i}.wav"
     tts.tts(text=sanitize(text), filename=raw, return_type="file")
     d = duration(raw)
-    # Energetic voice: pitch up ~8%, slightly faster, punchy compression
-    target = 6.5
+    # Educational/trustworthy tone: measured pace, warm body, clear articulation
+    target = 8.0
     raw_ratio = max(0.5, min(2.0, d / target))
-    rate_ratio = raw_ratio
-    tempo_chain = atempo_chain(rate_ratio)
-    # Natural pitch, clear voicing — no echo, lift presence, wider band
+    tempo_chain = atempo_chain(raw_ratio)
+    # Slightly lower pitch (~3%) for gravitas, warm low-mid, crisp sibilance
+    pitch = 0.97
+    sr_in = 22050
+    sr_up = int(sr_in * pitch)
     af = (
+        f"asetrate={sr_up},aresample=44100,atempo={1/pitch:.4f},"
         f"{tempo_chain},"
-        "highpass=f=80,lowpass=f=9500,"
-        "equalizer=f=2500:t=q:w=1.2:g=3,"
-        "equalizer=f=5000:t=q:w=1.2:g=2.5,"
-        "acompressor=threshold=-20dB:ratio=3:attack=5:release=120:makeup=2,"
-        "loudnorm=I=-14:TP=-1.5:LRA=9"
+        "highpass=f=70,lowpass=f=10000,"
+        "equalizer=f=250:t=q:w=1:g=1.5,"
+        "equalizer=f=500:t=q:w=1:g=-1,"
+        "equalizer=f=2800:t=q:w=1.2:g=2.5,"
+        "equalizer=f=6500:t=q:w=1.4:g=1.5,"
+        "acompressor=threshold=-22dB:ratio=2.5:attack=8:release=180:makeup=2,"
+        "loudnorm=I=-16:TP=-1.5:LRA=10"
     )
     run(["ffmpeg", "-y", "-i", raw, "-af", af, fit, "-loglevel", "error"])
     print(f"line{i}: {d:.2f}s -> {duration(fit):.2f}s")
