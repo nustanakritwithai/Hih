@@ -73,20 +73,14 @@ for i, text in enumerate(LINES, 1):
     raw_ratio = max(0.5, min(2.0, d / target))
     rate_ratio = raw_ratio
     tempo_chain = atempo_chain(rate_ratio)
-    # Pitch 200% (one octave up, chipmunk style)
-    pitch = 2.00
-    sr_in = 22050
-    sr_up = int(sr_in * pitch)
+    # Natural pitch, clear voicing — no echo, lift presence, wider band
     af = (
-        f"asetrate={sr_up},aresample=44100,atempo={1/pitch:.4f},"
         f"{tempo_chain},"
-        "highpass=f=90,"
-        "equalizer=f=180:t=q:w=1:g=-2,"
-        "equalizer=f=3000:t=q:w=1:g=4,"
-        "equalizer=f=6000:t=q:w=1:g=3,"
-        "acompressor=threshold=-18dB:ratio=4:attack=5:release=80:makeup=3,"
-        "aecho=0.6:0.4:30:0.08,"
-        "loudnorm=I=-14:TP=-1:LRA=9"
+        "highpass=f=80,lowpass=f=9500,"
+        "equalizer=f=2500:t=q:w=1.2:g=3,"
+        "equalizer=f=5000:t=q:w=1.2:g=2.5,"
+        "acompressor=threshold=-20dB:ratio=3:attack=5:release=120:makeup=2,"
+        "loudnorm=I=-14:TP=-1.5:LRA=9"
     )
     run(["ffmpeg", "-y", "-i", raw, "-af", af, fit, "-loglevel", "error"])
     print(f"line{i}: {d:.2f}s -> {duration(fit):.2f}s")
