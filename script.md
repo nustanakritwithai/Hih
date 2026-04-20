@@ -28,8 +28,17 @@
 - `clip_silent.mp4` — เวอร์ชันไม่มีเสียง
 - `clip.html` — สตอรี่บอร์ดเวอร์ชันเว็บ
 - `build_mp4.py` — สคริปต์สร้างภาพแต่ละฉากด้วย Pillow
-- `build_audio.py` — สคริปต์สร้างเสียงบรรยายด้วย PyThaiTTS (lunarlist ONNX)
+- `build_audio.py` — สคริปต์สร้างเสียงบรรยายด้วย PyThaiTTS (lunarlist ONNX, neural แต่เสียงกลางๆ)
 - `build_audio.sh` — สคริปต์เสียงเวอร์ชันเก่า (espeak-ng)
+- `f5_tts_colab.ipynb` — **Colab notebook** สำหรับสร้างเสียงด้วย F5-TTS-THAI (v2 IPA, คุณภาพสูงสุด)
+- `merge_audio.py` — รวม `voice.wav` (จาก Colab) กับ `clip_silent.mp4` → `clip.mp4`
+
+## Workflow เสียงคุณภาพสูง (F5-TTS-THAI)
+
+1. เปิด `f5_tts_colab.ipynb` บน Google Colab (ต้อง GPU T4)
+2. Runtime > Run all — จะได้ `voice.wav` 60 วินาที
+3. ดาวน์โหลด `voice.wav` มาวางใน repo
+4. รัน `python3 merge_audio.py voice.wav` → `clip.mp4` มีเสียงคุณภาพสูง
 
 ## ติดตั้งสำหรับสร้างเสียงใหม่
 
