@@ -68,10 +68,9 @@ for i, text in enumerate(LINES, 1):
     fit = f"{AUDIO}/fit{i}.wav"
     tts.tts(text=sanitize(text), filename=raw, return_type="file")
     d = duration(raw)
-    # Educational tone at natural pace; only speed up if too long, never stretch
-    target = 6.0
-    raw_ratio = max(1.0, min(2.0, d / target))
-    tempo_chain = atempo_chain(raw_ratio)
+    # Educational tone: slow down ~15% for clarity
+    slowdown = 0.85
+    tempo_chain = atempo_chain(slowdown)
     # Slightly lower pitch (~3%) for gravitas, warm low-mid, crisp sibilance
     pitch = 0.97
     sr_in = 22050
