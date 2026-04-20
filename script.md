@@ -22,10 +22,40 @@
 **ฉากที่ 6 · 0:50–1:00 · Call to action**
 > ถ้าชอบคลิปนี้ อย่าลืมกดไลก์และติดตามเพื่อดูเทคนิคเพิ่มเติม เจอกันใหม่คลิปหน้าครับ
 
-## วิธีใช้งาน / บันทึกเป็นวิดีโอ
+## ไฟล์วิดีโอ
 
-1. เปิด `clip.html` ในเบราว์เซอร์ (แนะนำ Chrome) แล้วกด F11 ให้เต็มจอแนวตั้ง
-2. ใช้โปรแกรมอัดหน้าจอ (เช่น OBS, QuickTime, Loom) ตั้งความละเอียด 1080×1920
-3. เริ่มอัด แล้วรีโหลดหน้าเว็บ คลิปจะเล่นอัตโนมัติ 60 วินาที
-4. บันทึกเสียงบรรยายตามสคริปต์ข้างบน หรือใช้ Text-to-Speech ภาษาไทย
-5. นำไฟล์ไปใส่ Subtitle/เสียง แล้วส่งออกเป็น MP4 พร้อมโพสต์
+- `clip.mp4` — คลิปพร้อมโพสต์ 9:16 / 1080×1920 / 30fps / 60 วินาที (เงียบ)
+- `clip.html` — สตอรี่บอร์ดเวอร์ชันเว็บ
+- `build_mp4.py` — สคริปต์สร้างภาพแต่ละฉากด้วย Pillow
+
+## วิธีสร้าง MP4 ใหม่
+
+```bash
+python3 build_mp4.py
+ffmpeg -y \
+  -loop 1 -t 10.5 -i frames/scene1.png \
+  -loop 1 -t 10.5 -i frames/scene2.png \
+  -loop 1 -t 10.5 -i frames/scene3.png \
+  -loop 1 -t 10.5 -i frames/scene4.png \
+  -loop 1 -t 10.5 -i frames/scene5.png \
+  -loop 1 -t 11.5 -i frames/scene6.png \
+  -filter_complex "[0:v]fps=30,format=yuv420p,fade=t=in:st=0:d=0.5[v0];\
+[1:v]fps=30,format=yuv420p[v1];[2:v]fps=30,format=yuv420p[v2];\
+[3:v]fps=30,format=yuv420p[v3];[4:v]fps=30,format=yuv420p[v4];\
+[5:v]fps=30,format=yuv420p,fade=t=out:st=10:d=1.5[v5];\
+[v0][v1]xfade=transition=fade:duration=0.5:offset=10[x1];\
+[x1][v2]xfade=transition=fade:duration=0.5:offset=20[x2];\
+[x2][v3]xfade=transition=fade:duration=0.5:offset=30[x3];\
+[x3][v4]xfade=transition=fade:duration=0.5:offset=40[x4];\
+[x4][v5]xfade=transition=fade:duration=0.5:offset=50[out]" \
+  -map "[out]" -t 60 -c:v libx264 -preset medium -crf 20 \
+  -pix_fmt yuv420p -movflags +faststart clip.mp4
+```
+
+## เพิ่มเสียงบรรยาย (ออปชัน)
+
+อัดเสียงตามสคริปต์ด้านบน (หรือใช้ Thai TTS) เป็น `voice.mp3` แล้วรวมเข้าคลิป:
+
+```bash
+ffmpeg -i clip.mp4 -i voice.mp3 -c:v copy -c:a aac -shortest clip_with_audio.mp4
+```
