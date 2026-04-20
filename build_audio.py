@@ -68,22 +68,22 @@ for i, text in enumerate(LINES, 1):
     fit = f"{AUDIO}/fit{i}.wav"
     tts.tts(text=sanitize(text), filename=raw, return_type="file")
     d = duration(raw)
-    # Educational tone: slow down ~15% for clarity
-    slowdown = 0.85
+    # Educational tone: slower 25% + de-mud + strong presence
+    slowdown = 0.75
     tempo_chain = atempo_chain(slowdown)
-    # Slightly lower pitch (~3%) for gravitas, warm low-mid, crisp sibilance
     pitch = 0.97
     sr_in = 22050
     sr_up = int(sr_in * pitch)
     af = (
         f"asetrate={sr_up},aresample=44100,atempo={1/pitch:.4f},"
         f"{tempo_chain},"
-        "highpass=f=70,lowpass=f=10000,"
-        "equalizer=f=250:t=q:w=1:g=1.5,"
-        "equalizer=f=500:t=q:w=1:g=-1,"
-        "equalizer=f=2800:t=q:w=1.2:g=2.5,"
-        "equalizer=f=6500:t=q:w=1.4:g=1.5,"
-        "acompressor=threshold=-22dB:ratio=2.5:attack=8:release=180:makeup=2,"
+        "highpass=f=100,lowpass=f=11000,"
+        "equalizer=f=300:t=q:w=1.2:g=-4,"
+        "equalizer=f=600:t=q:w=1.4:g=-2,"
+        "equalizer=f=2000:t=q:w=1.2:g=3,"
+        "equalizer=f=3500:t=q:w=1:g=4,"
+        "equalizer=f=7000:t=q:w=1.2:g=2.5,"
+        "acompressor=threshold=-20dB:ratio=3:attack=5:release=150:makeup=2.5,"
         "loudnorm=I=-16:TP=-1.5:LRA=10"
     )
     run(["ffmpeg", "-y", "-i", raw, "-af", af, fit, "-loglevel", "error"])
