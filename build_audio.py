@@ -71,18 +71,19 @@ for i, text in enumerate(LINES, 1):
     # Educational tone: slower 25% + de-mud + strong presence
     slowdown = 0.75
     tempo_chain = atempo_chain(slowdown)
-    pitch = 0.97
+    pitch = 0.92
     sr_in = 22050
     sr_up = int(sr_in * pitch)
     af = (
         f"asetrate={sr_up},aresample=44100,atempo={1/pitch:.4f},"
         f"{tempo_chain},"
-        "highpass=f=100,lowpass=f=11000,"
-        "equalizer=f=300:t=q:w=1.2:g=-4,"
-        "equalizer=f=600:t=q:w=1.4:g=-2,"
-        "equalizer=f=2000:t=q:w=1.2:g=3,"
-        "equalizer=f=3500:t=q:w=1:g=4,"
-        "equalizer=f=7000:t=q:w=1.2:g=2.5,"
+        "highpass=f=70,lowpass=f=11000,"
+        "equalizer=f=180:t=q:w=1.2:g=3,"
+        "equalizer=f=400:t=q:w=1.2:g=-2,"
+        "equalizer=f=700:t=q:w=1.4:g=-1.5,"
+        "equalizer=f=2000:t=q:w=1.2:g=2.5,"
+        "equalizer=f=3500:t=q:w=1:g=3.5,"
+        "equalizer=f=7000:t=q:w=1.2:g=2,"
         "acompressor=threshold=-20dB:ratio=3:attack=5:release=150:makeup=2.5,"
         "loudnorm=I=-16:TP=-1.5:LRA=10"
     )
