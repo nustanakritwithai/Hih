@@ -73,8 +73,8 @@ for i, text in enumerate(LINES, 1):
     raw_ratio = max(0.5, min(2.0, d / target))
     rate_ratio = raw_ratio
     tempo_chain = atempo_chain(rate_ratio)
-    # Pitch shift +8%: asetrate * 1.08 then atempo / 1.08 to preserve timing
-    pitch = 1.08
+    # Natural pitch (no shift)
+    pitch = 1.00
     sr_in = 22050
     sr_up = int(sr_in * pitch)
     af = (
