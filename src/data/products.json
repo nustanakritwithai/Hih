@@ -1,0 +1,6 @@
+[
+  {"id":"product-001","name":"Smart Glasses Bluetooth","category":"bluetooth_glasses","priceRange":"300-1000","bestFor":["ฟังเพลง","โทร","ทดลองของถูก"],"notFor":["AI จริงจัง","ถ่ายวิดีโอคุณภาพสูง"],"platform":"Shopee","affiliateUrl":"#","rating":3.5,"characterRecommend":"น้องถั่วเล็ก","badge":"งบประหยัด","highlight":"น้ำหนักเบา ใช้งานง่าย"},
+  {"id":"product-002","name":"Camera Glasses","category":"camera_glasses","priceRange":"1000-5000","bestFor":["ถ่ายคลิป POV","คอนเทนต์สั้น"],"notFor":["เล่นเกมจอใหญ่"],"platform":"Shopee","affiliateUrl":"#","rating":4.0,"characterRecommend":"คาชิว","badge":"คอนเทนต์","highlight":"เริ่มถ่ายได้ไว ไม่ต้องถือกล้อง"},
+  {"id":"product-003","name":"AR Glasses","category":"ar_glasses","priceRange":"5000-10000","bestFor":["ดูหนัง","เล่นเกม","ทำงานหลายหน้าต่าง"],"notFor":["งบจำกัดมาก"],"platform":"Shopee","affiliateUrl":"#","rating":4.2,"characterRecommend":"พิสตาชิโอ","badge":"ดูหนัง","highlight":"จอเสมือนใหญ่ พกง่าย"},
+  {"id":"product-004","name":"AI Glasses Premium","category":"ai_glasses","priceRange":"10000+","bestFor":["ผู้ใช้ AI ขั้นสูง","งานภาคสนาม"],"notFor":["คนที่อยากได้ฟีเจอร์พื้นฐานเท่านั้น"],"platform":"Shopee","affiliateUrl":"#","rating":4.1,"characterRecommend":"แม่อัลมอนด์","badge":"ฟีเจอร์ล้ำ","highlight":"รองรับผู้ช่วย AI และคำสั่งเสียง"}
+]
