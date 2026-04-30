@@ -1,0 +1,23 @@
+# Local secrets / env
+.env
+.env.local
+*.pem
+id_rsa
+id_rsa.pub
+
+# Build output
+bin/
+dist/
+build/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Local Claude state
+.claude/settings.local.json
+.claude/cache/

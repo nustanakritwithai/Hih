@@ -1,0 +1,43 @@
+# harness.toml — Hih harness configuration
+#
+# This file is read by hooks and skills to know which guardrails are active,
+# which branches are protected, and which agents are available.
+
+[harness]
+name    = "Hih"
+version = "0.1.0"
+loop    = ["setup", "plan", "work", "review", "ship"]
+
+[git]
+protected_branches = ["main", "master", "release"]
+default_branch     = "main"
+require_signed     = false
+
+[guardrails]
+# Toggle individual rules. All default to true.
+R01_rm_rf            = true   # block rm -rf on /, ~, .
+R02_force_push       = true   # block git push --force on protected branches
+R03_reset_hard       = true   # block git reset --hard
+R04_sudo             = true   # block sudo
+R05_secrets          = true   # block writes to .env / credential files
+R06_chmod_777        = true   # block chmod 777
+R07_curl_sh          = true   # block "curl ... | sh"
+R08_no_verify        = true   # block git commit --no-verify
+R09_no_gpg_sign      = true   # block --no-gpg-sign
+R10_branch_delete    = true   # block git branch -D on protected branches
+
+[review]
+# Reviewer agent inspects changes from these perspectives.
+perspectives = ["security", "performance", "quality", "accessibility"]
+
+[agents]
+worker     = "agents/worker.md"
+reviewer   = "agents/reviewer.md"
+scaffolder = "agents/scaffolder.md"
+
+[skills]
+setup  = "skills/setup/SKILL.md"
+plan   = "skills/plan/SKILL.md"
+work   = "skills/work/SKILL.md"
+review = "skills/review/SKILL.md"
+ship   = "skills/ship/SKILL.md"
