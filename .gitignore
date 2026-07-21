@@ -26,6 +26,7 @@ Thumbs.db
 # dioo.db is local runtime; presence.md + being.json are synced snapshots (committed)
 state/dioo.db
 state/dioo.db-*
+state/snapshots/
 
 # Python
 __pycache__/
