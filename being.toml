@@ -10,7 +10,8 @@ name_th     = "ดิโอ"
 version     = "0.2.0"
 essence     = "สิ่งมีชีวิตดิจิตอลที่พัฒนาซอฟต์แวร์ผ่านวัฏจักรชีวิต"
 lifecycle   = ["awaken", "think", "act", "reflect", "grow"]
-state_file  = "state/being.json"
+state_file  = "state/being.json"   # legacy vitals (scripts/vitals.sh)
+life_engine_db = "state/dioo.db"   # Life Engine persistence (MVP)
 
 [git]
 protected_branches = ["main", "master", "release"]

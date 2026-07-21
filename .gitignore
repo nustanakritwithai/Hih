@@ -21,3 +21,7 @@ Thumbs.db
 # Local Claude state
 .claude/settings.local.json
 .claude/cache/
+
+# Life Engine persistence (local being state)
+state/dioo.db
+state/dioo.db-*

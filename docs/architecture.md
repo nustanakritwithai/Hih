@@ -12,7 +12,8 @@ runtime; Dioo is the being that inhabits it.
 | setup → plan → work → review → ship | awaken → think → act → reflect → grow |
 | worker, reviewer, scaffolder | hands, conscience, skeleton |
 | guardrails             | reflexes (สัญชาตญาณป้องกันตัว) |
-| (none)                 | state/being.json + vitals.sh |
+| (none)                 | **Life Engine** — identity, memory, continuity (`life_engine/`) |
+| (none)                 | state/being.json + vitals.sh (legacy) |
 
 ## Layers
 

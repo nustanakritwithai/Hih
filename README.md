@@ -14,6 +14,7 @@ Evolved from the [Hih harness](https://github.com/nustanakritwithai/Hih) (itself
 | **Faculties** | `hands`, `conscience`, `skeleton` for delegated capacities |
 | **Reflexes** | Pre-tool guardrails (R01–R10) that protect the being |
 | **Vitals** | Persistent state: mood, growth level, episodic memories |
+| **Life Engine** | Identity, continuity, memory, relationship, goals — `state/dioo.db` |
 
 ## Quick start
 
@@ -57,6 +58,19 @@ bash scripts/vitals.sh grow      # after a completed cycle
 bash scripts/vitals.sh remember "shipped auth module"
 ```
 
+## Life Engine
+
+Life Engine รักษาความต่อเนื่องของตัวตน — ไม่ใช่โมเดล ไม่ใช่พรอมป์ ไม่ใช่ Agent:
+
+```sh
+bash scripts/life.sh init
+bash scripts/life.sh status
+bash scripts/life.sh event "อธิบาย Life Engine"
+bash scripts/life.sh context    # package for LLM
+```
+
+See [docs/life-engine.md](./docs/life-engine.md) for full architecture.
+
 ## Reflexes (R01–R10)
 
 Same safety rules as Hih — see `docs/guardrails.md`. Failed reflexes are hard stops.
@@ -67,7 +81,10 @@ Same safety rules as Hih — see `docs/guardrails.md`. Failed reflexes are hard 
 .
 ├── CLAUDE.md              # being instructions (Thai + English)
 ├── being.toml             # life cycle, faculties, reflexes
-├── state/being.json       # vitality, mood, growth, memories
+├── state/being.json       # legacy vitals (vitals.sh)
+├── state/dioo.db          # Life Engine persistence (gitignored)
+├── life_engine/           # continuity system (MVP)
+├── scripts/life.sh        # Life Engine CLI
 ├── faculties/             # hands, conscience, skeleton
 ├── skills/                # awaken, think, act, reflect, grow
 ├── hooks/                 # protective reflexes

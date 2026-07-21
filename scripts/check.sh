@@ -24,4 +24,8 @@ done
 echo "  ok"
 
 echo
+echo "==> life engine tests"
+bash tests/test_life_engine.sh
+
+echo
 echo "all checks passed"
