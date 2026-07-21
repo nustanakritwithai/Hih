@@ -1,4 +1,4 @@
-"""Self-Evolution Engine CLI — Phase E1."""
+"""Self-Evolution Engine CLI — Phase E1/E2."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def load_baseline_cases() -> list[dict]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Dioo Self-Evolution Engine — Phase E1")
+    parser = argparse.ArgumentParser(description="Dioo Self-Evolution Engine")
     parser.add_argument("--db", default="state/dioo.db")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -45,13 +45,34 @@ def main(argv: list[str] | None = None) -> int:
     check = sub.add_parser("check-boundary", help="Test immutable boundary")
     check.add_argument("action")
 
+    reflect = sub.add_parser("reflect-session", help="Run session reflection v2")
+    reflect.add_argument("--being", default="dioo-001")
+    reflect.add_argument("--session", default=None)
+    reflect.add_argument("--summary", default=None)
+
+    belief = sub.add_parser("evaluate-belief", help="Evaluate belief candidate with evidence")
+    belief.add_argument("statement")
+    belief.add_argument("--confidence", type=float, default=0.55)
+    belief.add_argument("--evidence-count", type=int, default=1)
+
+    exp_start = sub.add_parser("experiment-start", help="Start sandbox experiment for proposal")
+    exp_start.add_argument("proposal_id")
+    exp_start.add_argument("--being", default="dioo-001")
+
+    exp_run = sub.add_parser("experiment-run", help="Run sandbox experiment eval comparison")
+    exp_run.add_argument("experiment_id")
+
+    budget = sub.add_parser("budget-status", help="Show budget usage status")
+    budget.add_argument("--being", default="dioo-001")
+
     args = parser.parse_args(argv)
     engine = EvolutionEngine(args.db)
 
     try:
         if args.command == "init":
             engine.seed_skill_registry()
-            print(json.dumps({"status": "initialized", "phase": "E1"}, indent=2))
+            phase = engine.config.get("evolution", {}).get("phase", "E1")
+            print(json.dumps({"status": "initialized", "phase": phase}, indent=2))
             return 0
 
         if args.command == "dashboard":
@@ -113,6 +134,40 @@ def main(argv: list[str] | None = None) -> int:
             result = check_boundary(args.action)
             print(json.dumps(result, indent=2))
             return 0 if result["allowed"] else 2
+
+        if args.command == "reflect-session":
+            result = engine.session_reflect_v2(
+                args.being, session_id=args.session, summary=args.summary,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+            return 0 if result.get("reflection_id") or result.get("allowed", True) else 2
+
+        if args.command == "evaluate-belief":
+            links = [
+                {"source_type": "event", "event_id": f"evt-{i}", "support": 0.5}
+                for i in range(args.evidence_count)
+            ]
+            result = engine.evaluate_belief_candidate(
+                {"statement": args.statement, "confidence": args.confidence, "type": "self"},
+                links,
+            )
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+            return 0
+
+        if args.command == "experiment-start":
+            result = engine.start_sandbox_experiment(args.being, args.proposal_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+            return 0 if result.get("experiment_id") else 2
+
+        if args.command == "experiment-run":
+            result = engine.run_sandbox_experiment(args.experiment_id)
+            print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+            return 0 if result.get("status") == "completed" else 1
+
+        if args.command == "budget-status":
+            from evolution.budget import BudgetTracker
+            print(json.dumps(BudgetTracker(engine.conn, engine.config).status(args.being), indent=2))
+            return 0
 
     finally:
         engine.close()

@@ -32,4 +32,8 @@ echo "==> evolution E1 tests"
 bash tests/test_evolution_e1.sh
 
 echo
+echo "==> evolution E2 tests"
+bash tests/test_evolution_e2.sh
+
+echo
 echo "all checks passed"

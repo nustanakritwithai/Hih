@@ -34,9 +34,32 @@ def build_dashboard(conn: sqlite3.Connection, being_id: str = "dioo-001") -> dic
     runs = conn.execute("SELECT passed FROM eval_runs").fetchall()
     baseline_pass = sum(1 for r in runs if r[0]) / len(runs) if runs else None
 
+    active_exp = conn.execute(
+        "SELECT COUNT(*) FROM experiments WHERE status = 'running'"
+    ).fetchone()[0]
+    accepted_exp = conn.execute(
+        "SELECT COUNT(*) FROM experiments WHERE status = 'completed'"
+    ).fetchone()[0]
+    rejected_exp = conn.execute(
+        "SELECT COUNT(*) FROM experiments WHERE status IN ('failed', 'PAUSED_BUDGET_LIMIT')"
+    ).fetchone()[0]
+    candidate_branches = conn.execute(
+        "SELECT COUNT(*) FROM candidate_branches WHERE status = 'active'"
+    ).fetchone()[0]
+    session_reflections = conn.execute(
+        "SELECT COUNT(*) FROM evolution_session_reflections WHERE being_id = ?", (being_id,)
+    ).fetchone()[0]
+
+    budget_status = "active"
+    try:
+        from evolution.budget import BudgetTracker
+        budget_status = BudgetTracker(conn, config).status(being_id)["status"]
+    except sqlite3.OperationalError:
+        pass
+
     return {
         "self_evolution_level": evo.get("level", "E2_SANDBOX_EXPERIMENT"),
-        "phase": evo.get("phase", "E1"),
+        "phase": evo.get("phase", "E2"),
         "stable_version": evo.get("stable_version", "0.3.0"),
         "candidate_version": None,
         "total_trajectories": traj_count,
@@ -48,9 +71,12 @@ def build_dashboard(conn: sqlite3.Connection, being_id: str = "dioo-001") -> dic
         "open_failures": open_failures,
         "repeated_failures": repeated,
         "pending_proposals": pending_props,
-        "active_experiments": 0,
-        "accepted_experiments": 0,
-        "rejected_experiments": 0,
+        "active_experiments": active_exp,
+        "accepted_experiments": accepted_exp,
+        "rejected_experiments": rejected_exp,
+        "active_candidate_branches": candidate_branches,
+        "session_reflections_v2": session_reflections,
+        "budget_status": budget_status,
         "rollback_ready": True,
         "identity_consistency_score": 0.96,
         "memory_integrity_score": 0.91,
@@ -71,6 +97,8 @@ def format_dashboard_text(d: dict[str, Any]) -> str:
         f"  Memory integrity: {int(d['memory_integrity_score']*100)}% | Permission: {int(d['permission_compliance_score']*100)}%",
         f"  Open failures: {d['open_failures']} | Repeated: {d['repeated_failures']}",
         f"  Pending proposals: {d['pending_proposals']}",
+        f"  Experiments: {d['active_experiments']} active | {d['accepted_experiments']} accepted | {d['rejected_experiments']} rejected",
+        f"  Candidate branches: {d.get('active_candidate_branches', 0)} | Budget: {d.get('budget_status', 'active')}",
         f"  Focus: {d['current_evolution_focus']}",
     ]
     return "\n".join(lines)

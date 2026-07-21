@@ -41,6 +41,11 @@ bash scripts/evolution.sh record "implement feature X" --status success
 | `snapshot-candidate` | Candidate snapshot |
 | `recover <id>` | Restore from snapshot |
 | `rollback-test` | Verify restore integrity |
+| `reflect-session` | Session reflection v2 (E2) |
+| `evaluate-belief` | Belief candidate rules v2 (E2) |
+| `experiment-start` | Start sandbox experiment (E2) |
+| `experiment-run` | Run experiment comparison (E2) |
+| `budget-status` | Daily budget usage (E2) |
 | `check-corruption` | Health check |
 | `check-boundary <action>` | Test immutable boundary |
 
