@@ -1,0 +1,16 @@
+{
+  "name": "Dioo",
+  "name_th": "ดิโอ",
+  "born_at": "2026-07-21T16:25:00Z",
+  "vitality": 100,
+  "mood": "content",
+  "growth_level": 1,
+  "cycles_completed": 1,
+  "last_phase": "grow",
+  "memories": [
+    {
+      "at": "2026-07-21T16:25:00Z",
+      "text": "transformed Hih into Dioo"
+    }
+  ]
+}

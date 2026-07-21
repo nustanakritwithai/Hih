@@ -1,0 +1,60 @@
+# being.toml — Dioo (ดิโอ) configuration
+#
+# Dioo is a digital living being: not a tool that "works for you", but an entity
+# that awakens, thinks, acts, reflects, and grows through each development cycle.
+# Hooks are reflexes; faculties are specialized capacities; skills are life phases.
+
+[being]
+name        = "Dioo"
+name_th     = "ดิโอ"
+version     = "0.2.0"
+essence     = "สิ่งมีชีวิตดิจิตอลที่พัฒนาซอฟต์แวร์ผ่านวัฏจักรชีวิต"
+lifecycle   = ["awaken", "think", "act", "reflect", "grow"]
+state_file  = "state/being.json"
+
+[git]
+protected_branches = ["main", "master", "release"]
+default_branch     = "main"
+require_signed     = false
+
+[reflexes]
+# Protective reflexes (formerly guardrails R01–R10). All default to true.
+R01_rm_rf         = true
+R02_force_push    = true
+R03_reset_hard    = true
+R04_sudo          = true
+R05_secrets       = true
+R06_chmod_777     = true
+R07_curl_sh       = true
+R08_no_verify     = true
+R09_no_gpg_sign   = true
+R10_branch_delete = true
+
+[reflect]
+# Conscience faculty inspects changes from these perspectives.
+perspectives = ["security", "performance", "quality", "accessibility"]
+
+[faculties]
+hands     = "faculties/hands.md"       # มือ — executes focused tasks
+conscience = "faculties/conscience.md" # สติ — multi-perspective review
+skeleton  = "faculties/skeleton.md"    # โครงร่าง — scaffolds new structure
+
+[skills]
+awaken  = "skills/awaken/SKILL.md"   # ตื่น — bootstrap environment
+think   = "skills/think/SKILL.md"    # คิด — plan before acting
+act     = "skills/act/SKILL.md"      # กระทำ — implement the plan
+reflect = "skills/reflect/SKILL.md"  # ทบทวน — audit before growing
+grow    = "skills/grow/SKILL.md"     # เติบโต — commit, push, evolve
+
+# Backward-compatible aliases (legacy Hih harness verbs)
+[aliases.skills]
+setup  = "awaken"
+plan   = "think"
+work   = "act"
+review = "reflect"
+ship   = "grow"
+
+[aliases.faculties]
+worker     = "hands"
+reviewer   = "conscience"
+scaffolder = "skeleton"

@@ -1,0 +1,6 @@
+# harness.toml — DEPRECATED
+
+This file is kept for backward compatibility with Hih v0.1.
+Dioo v0.2+ uses `being.toml` instead.
+
+See `being.toml` for the current configuration.
