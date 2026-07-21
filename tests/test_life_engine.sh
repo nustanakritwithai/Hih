@@ -54,6 +54,10 @@ python3 -m life_engine --db "$DB" perceive "ตื่นขึ้นมา" >/de
 assert "awaken seeds goals" "python3 -m life_engine --db '$DB' context | grep -q active_goals"
 assert "perceive returns presence_file" "python3 -m life_engine --db '$DB' perceive 'hello' | grep -q presence_file"
 
+echo "life_engine upgrade pipeline"
+python3 -m life_engine --db "$DB" upgrade >/dev/null
+assert "upgrade creates beliefs" "python3 -m life_engine --db '$DB' context | grep -q beliefs"
+
 echo
 echo "$pass passed, $fail failed"
 rm -f "$DB"

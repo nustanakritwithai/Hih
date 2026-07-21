@@ -27,6 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("context", help="สร้าง context package สำหรับ LLM (JSON)")
     sub.add_parser("presence", help="เขียน state/presence.md จากสถานะปัจจุบัน")
     sub.add_parser("autonomy", help="ปรับทิศทายึดพัฒนาตัวเองอิสระ ไม่ตอบสนองผู้ใช้เป็นหลัก")
+    sub.add_parser("upgrade", help="อัปเกรด Level 3: goal hierarchy + session reflection + beliefs")
+    reflect = sub.add_parser("reflect", help="รัน session reflection")
+    reflect.add_argument("--summary", default=None)
 
     perceive = sub.add_parser(
         "perceive",
@@ -73,6 +76,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "autonomy":
         result = engine.reorient_autonomy()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "upgrade":
+        result = engine.upgrade_development_stack()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "reflect":
+        result = engine.session_reflect(summary=args.summary)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 

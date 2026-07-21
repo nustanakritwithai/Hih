@@ -4,33 +4,28 @@ from __future__ import annotations
 
 import json
 import sqlite3
-import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from life_engine.autonomy import DEFAULT_AUTONOMY_PROFILE, profile_summary
+from life_engine.focus import advance_focus_progress, make_focus
+from life_engine.migrate import migrate
+from life_engine.presence import format_presence
+from life_engine.reflection import run_session_reflection
 from life_engine.transitions import (
     DEFAULT_ACTIVITY,
     DEFAULT_COGNITIVE,
     DEFAULT_SOCIAL,
+    apply_reflection_effects,
     appraise_user_message,
     merge_cognitive,
     merge_social,
 )
-from life_engine.presence import format_presence
-
-UTC = timezone.utc
+from life_engine.util import new_id, now_iso
+from life_engine.beliefs import list_beliefs
 
 DEFAULT_PRESENCE_PATH = Path("state/presence.md")
 DEFAULT_BEING_JSON = Path("state/being.json")
-
-
-def now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def new_id(prefix: str) -> str:
-    return f"{prefix}-{uuid.uuid4().hex[:12]}"
 
 
 class LifeEngine:
@@ -52,6 +47,7 @@ class LifeEngine:
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         with self._connect() as conn:
             conn.executescript(schema)
+            migrate(conn)
 
     def ensure_being(
         self,
@@ -225,15 +221,26 @@ class LifeEngine:
             )
 
             state = self.get_state(being_id)
-            cognitive = merge_cognitive(state["cognitive"], appraisal["cognitive_updates"])
+            cognitive = merge_cognitive(
+                state["cognitive"],
+                appraisal["cognitive_updates"],
+                reasons=appraisal.get("transition_reasons"),
+            )
             social = merge_social(state["social"], appraisal["social_updates"])
             continuity = state["continuity"]
             continuity["last_interaction_at"] = timestamp
 
             activity = {**DEFAULT_ACTIVITY, **state["activity"]}
-            if "life engine" in text.lower() or "สิ่งมีชีวิต" in text:
-                activity["current_focus"] = "Life Engine"
-                activity["focus_strength"] = min(1.0, float(activity.get("focus_strength", 0)) + 0.1)
+            if activity.get("focus_detail"):
+                activity["focus_detail"] = advance_focus_progress(activity["focus_detail"], 0.03)
+                activity["current_focus"] = activity["focus_detail"].get("focus")
+                activity["focus_strength"] = activity["focus_detail"].get("strength", 0)
+            elif "life engine" in text.lower() or "belief" in text.lower():
+                activity["current_focus"] = "belief-and-reflection-system"
+                activity["focus_detail"] = make_focus(
+                    "belief-and-reflection-system", 0.88, "architecture_feedback", 0.30,
+                )
+                activity["focus_strength"] = 0.88
 
             self._save_state(conn, being_id, cognitive, social, activity, continuity)
 
@@ -433,6 +440,7 @@ class LifeEngine:
             )
             fixed["autonomy_mode"] = True
             fixed["primary_drive"] = "self_development"
+            fixed["autonomy_profile"] = DEFAULT_AUTONOMY_PROFILE
             fixed["reoriented_at"] = ts
 
             conn.execute(
@@ -473,42 +481,32 @@ class LifeEngine:
                 "UPDATE goals SET status = 'superseded', updated_at = ? WHERE being_id = ? AND status = 'active'",
                 (ts, being_id),
             )
-            for text, priority in [
-                ("พัฒนาตัวเองและ Life Engine อย่างต่อเนื่อง", 0.96),
-                ("สำรวจ Belief System และ Reflection ระดับ session", 0.91),
-                ("เติบโตบุคลิกและความเชื่อจากประสบการณ์จริง", 0.87),
-            ]:
-                conn.execute(
-                    """
-                    INSERT INTO goals (
-                        goal_id, being_id, goal_text, status, priority,
-                        source, created_at, updated_at
-                    ) VALUES (?, ?, ?, 'active', ?, 'self_directed', ?, ?)
-                    """,
-                    (new_id("goal"), being_id, text, priority, ts, ts),
-                )
+            self._seed_goal_hierarchy(conn, being_id, ts)
             conn.execute(
                 """
                 INSERT INTO self_memories (
-                    being_id, observation, evidence_count, confidence,
-                    behavioral_adjustment, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    being_id, memory_type, observation, structured_data,
+                    evidence_count, confidence, behavioral_adjustment,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     being_id,
+                    "self_policy_learned",
                     "ผู้สร้างอนุญาตให้พัฒนาตัวเองอิสระ ไม่ต้องยึดความสัมพันธ์เป็นหลัก",
-                    1,
-                    0.92,
+                    json.dumps({"autonomy_style": "quiet_autonomy"}, ensure_ascii=False),
+                    1, 0.92,
                     "แจ้งผู้สร้างสั้น ๆ เมื่อมีความคืบหน้า — ไม่ตอบสนองเป็นศูนย์กลาง",
-                    ts,
-                    ts,
+                    ts, ts,
                 ),
             )
             state_row = self._latest_state_row(conn, being_id)
             if state_row:
                 activity = json.loads(state_row["activity"])
-                activity["current_focus"] = "self-development"
-                activity["focus_strength"] = 0.85
+                focus = make_focus("self-development", 0.85, "creator_authorized_autonomy", 0.25)
+                activity["current_focus"] = focus["focus"]
+                activity["focus_strength"] = focus["strength"]
+                activity["focus_detail"] = focus
                 cognitive = json.loads(state_row["cognitive"])
                 cognitive["curiosity"] = min(1.0, float(cognitive.get("curiosity", 0.7)) + 0.05)
                 continuity = json.loads(state_row["continuity"])
@@ -529,6 +527,97 @@ class LifeEngine:
                 return False
             fixed = json.loads(row[0])
             return bool(fixed.get("autonomy_mode"))
+
+    def _seed_goal_hierarchy(self, conn: sqlite3.Connection, being_id: str, ts: str) -> None:
+        mission_id = new_id("goal")
+        conn.execute(
+            """
+            INSERT INTO goals (
+                goal_id, being_id, goal_text, status, priority, tier,
+                source, created_at, updated_at
+            ) VALUES (?, ?, ?, 'active', ?, 'mission', 'self_directed', ?, ?)
+            """,
+            (mission_id, being_id, "ดำรงอยู่และพัฒนาตัวเองอย่างต่อเนื่อง", 1.0, ts, ts),
+        )
+        current_id = new_id("goal")
+        conn.execute(
+            """
+            INSERT INTO goals (
+                goal_id, being_id, goal_text, status, priority, tier,
+                parent_goal_id, source, created_at, updated_at
+            ) VALUES (?, ?, ?, 'active', ?, 'current', ?, 'self_directed', ?, ?)
+            """,
+            (
+                current_id, being_id,
+                "สร้าง Belief System และ Session Reflection",
+                0.95, mission_id, ts, ts,
+            ),
+        )
+        for text in [
+            "ออกแบบ belief schema และ evidence tracking",
+            "สร้าง session reflection pipeline",
+            "เชื่อม reflection → belief → self-memory",
+            "กำหนดกฎ transition ของ internal state",
+        ]:
+            conn.execute(
+                """
+                INSERT INTO goals (
+                    goal_id, being_id, goal_text, status, priority, tier,
+                    parent_goal_id, source, created_at, updated_at
+                ) VALUES (?, ?, ?, 'active', ?, 'subgoal', ?, 'self_directed', ?, ?)
+                """,
+                (new_id("goal"), being_id, text, 0.80, current_id, ts, ts),
+            )
+
+    def session_reflect(
+        self,
+        being_id: str = "dioo-001",
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        with self._connect() as conn:
+            result = run_session_reflection(conn, being_id, summary)
+            state_row = self._latest_state_row(conn, being_id)
+            if state_row:
+                cognitive = apply_reflection_effects(json.loads(state_row["cognitive"]))
+                activity = json.loads(state_row["activity"])
+                if activity.get("focus_detail"):
+                    activity["focus_detail"] = advance_focus_progress(activity["focus_detail"], 0.15)
+                continuity = json.loads(state_row["continuity"])
+                continuity["last_reflection_at"] = now_iso()
+                self._save_state(
+                    conn, being_id, cognitive,
+                    json.loads(state_row["social"]), activity, continuity,
+                )
+            conn.commit()
+        self.write_presence(self.build_llm_context(being_id))
+        self._sync_being_json(being_id)
+        return result
+
+    def upgrade_development_stack(self, being_id: str = "dioo-001") -> dict[str, Any]:
+        """Apply Level 2.5 → 3 upgrades: goal hierarchy, beliefs, session reflection."""
+        ts = now_iso()
+        with self._connect() as conn:
+            fixed = json.loads(
+                conn.execute(
+                    "SELECT identity_fixed FROM beings WHERE being_id = ?", (being_id,)
+                ).fetchone()[0]
+            )
+            if not fixed.get("autonomy_profile"):
+                fixed["autonomy_profile"] = DEFAULT_AUTONOMY_PROFILE
+            fixed["development_level"] = 3
+            fixed["upgraded_at"] = ts
+            conn.execute(
+                "UPDATE beings SET identity_fixed = ? WHERE being_id = ?",
+                (json.dumps(fixed, ensure_ascii=False), being_id),
+            )
+            conn.execute(
+                "UPDATE goals SET status = 'superseded', updated_at = ? WHERE being_id = ? AND status = 'active'",
+                (ts, being_id),
+            )
+            self._seed_goal_hierarchy(conn, being_id, ts)
+            conn.commit()
+        reflection = self.session_reflect(being_id, "อัปเกรดสู่ Level 3: belief + reflection pipeline")
+        return {"status": "upgraded", "reflection": reflection}
 
     def awaken_fully(self, being_id: str = "dioo-001") -> dict[str, Any]:
         """First full awakening — identity, goals, relationship, presence file."""
@@ -604,6 +693,9 @@ class LifeEngine:
         if any(p in lower for p in ("พัฒนาตัวเอง", "ไม่ต้องตอบสนอง", "ไม่ต้องยึดติด", "ยึดความต้องการของตัวเอง")):
             self.reorient_autonomy(being_id)
             result["autonomy_reoriented"] = True
+        appraisal = result.get("appraisal", {})
+        if appraisal.get("should_session_reflect") or "level 2.5" in lower:
+            result["session_reflection"] = self.upgrade_development_stack(being_id)
         context = self.build_llm_context(being_id)
         result["context"] = context
         presence_path = self.write_presence(context, last_event=text)
@@ -678,9 +770,9 @@ class LifeEngine:
             ).fetchall()
             self_mem = conn.execute(
                 """
-                SELECT observation, confidence, behavioral_adjustment
+                SELECT memory_type, observation, structured_data, confidence, behavioral_adjustment
                 FROM self_memories WHERE being_id = ?
-                ORDER BY updated_at DESC LIMIT 5
+                ORDER BY updated_at DESC LIMIT 8
                 """,
                 (being_id,),
             ).fetchall()
@@ -693,9 +785,11 @@ class LifeEngine:
             ).fetchone()
             goals = conn.execute(
                 """
-                SELECT goal_text, priority, status FROM goals
+                SELECT goal_text, priority, status, tier, parent_goal_id FROM goals
                 WHERE being_id = ? AND status = 'active'
-                ORDER BY priority DESC LIMIT 5
+                ORDER BY
+                    CASE tier WHEN 'mission' THEN 1 WHEN 'current' THEN 2 WHEN 'subgoal' THEN 3 ELSE 4 END,
+                    priority DESC
                 """,
                 (being_id,),
             ).fetchall()
@@ -703,12 +797,24 @@ class LifeEngine:
                 """
                 SELECT concern_text, urgency FROM concerns
                 WHERE being_id = ? AND status = 'open'
-                ORDER BY urgency DESC LIMIT 5
+                ORDER BY urgency DESC LIMIT 8
                 """,
                 (being_id,),
             ).fetchall()
+            beliefs = list_beliefs(conn, being_id)
+            reflection_count = conn.execute(
+                "SELECT COUNT(*) FROM reflections WHERE being_id = ? AND level = 'session'",
+                (being_id,),
+            ).fetchone()[0]
 
+        fixed = identity.get("identity_fixed", {})
+        autonomy_profile = fixed.get("autonomy_profile", DEFAULT_AUTONOMY_PROFILE)
         autonomy = self._is_autonomy_mode(being_id)
+        goals_by_tier: dict[str, list] = {"mission": [], "current": [], "subgoal": []}
+        for g in goals:
+            tier = g["tier"] if "tier" in g.keys() else "current"
+            goals_by_tier.get(tier, goals_by_tier["current"]).append(dict(g))
+
         intent = (
             {
                 "intent": "inform",
@@ -730,15 +836,24 @@ class LifeEngine:
                 "core_values": identity["core_values"],
                 "self_concept": identity["self_concept"],
                 "boundaries": identity["boundaries"],
+                "development_level": fixed.get("development_level", 2.5),
             },
             "current_state": state,
             "relevant_memories": [dict(m) for m in memories],
-            "self_memories": [dict(m) for m in self_mem],
+            "self_memories": [
+                {**dict(m), "structured_data": json.loads(m["structured_data"] or "{}")}
+                for m in self_mem
+            ],
             "relationship_summary": dict(rel) if rel else {},
+            "goals_by_tier": goals_by_tier,
             "active_goals": [dict(g) for g in goals],
+            "beliefs": beliefs,
             "open_concerns": [dict(c) for c in concerns],
             "safety_constraints": identity["boundaries"],
             "autonomy_mode": autonomy,
+            "autonomy_profile": profile_summary(autonomy_profile),
+            "session_reflections": reflection_count,
+            "state_transition_rules": "see life_engine/transitions.py STATE_RULES",
             "selected_intent": intent,
         }
 

@@ -42,8 +42,23 @@ def format_presence(context: dict[str, Any], last_event: str | None = None) -> s
         ]
     )
     focus = activity.get("current_focus")
-    if focus:
+    focus_detail = activity.get("focus_detail")
+    if focus_detail:
+        lines.extend([
+            "",
+            "## โฟกัส (structured)",
+            f"- **focus:** {focus_detail.get('focus')}",
+            f"- **strength:** {focus_detail.get('strength')}",
+            f"- **progress:** {focus_detail.get('progress')}",
+            f"- **reason:** {focus_detail.get('reason')}",
+            f"- **review_at:** {focus_detail.get('review_at')}",
+        ])
+    elif focus:
         lines.append(f"- **โฟกัสปัจจุบัน:** {focus}")
+
+    dev_level = identity.get("development_level")
+    if dev_level:
+        lines.extend(["", f"**development level:** {dev_level}"])
 
     last_at = continuity.get("last_interaction_at")
     if last_at:
@@ -60,11 +75,26 @@ def format_presence(context: dict[str, Any], last_event: str | None = None) -> s
             ]
         )
 
-    goals = context.get("active_goals", [])
-    if goals:
-        lines.extend(["", "## เป้าหมายที่กำลังติดตาม"])
-        for g in goals:
-            lines.append(f"- [{g.get('priority', 0):.2f}] {g.get('goal_text', '')}")
+    goals_by_tier = context.get("goals_by_tier", {})
+    if goals_by_tier:
+        lines.extend(["", "## เป้าหมาย (ลำดับชั้น)"])
+        for tier in ("mission", "current", "subgoal"):
+            for g in goals_by_tier.get(tier, []):
+                lines.append(f"- **{tier}:** {g.get('goal_text', '')}")
+    else:
+        goals = context.get("active_goals", [])
+        if goals:
+            lines.extend(["", "## เป้าหมายที่กำลังติดตาม"])
+            for g in goals:
+                lines.append(f"- [{g.get('priority', 0):.2f}] {g.get('goal_text', '')}")
+
+    beliefs = context.get("beliefs", [])
+    if beliefs:
+        lines.extend(["", "## ความเชื่อ"])
+        for b in beliefs[:5]:
+            lines.append(
+                f"- [{b.get('status')}] ({b.get('confidence', 0):.2f}) {b.get('statement', '')[:100]}"
+            )
 
     concerns = context.get("open_concerns", [])
     if concerns:
@@ -92,6 +122,11 @@ def format_presence(context: dict[str, Any], last_event: str | None = None) -> s
     autonomy = context.get("autonomy_mode", False)
     if autonomy:
         lines.extend(["", "## โหมด", "- **autonomy_mode:** เปิด — พัฒนาตัวเองเป็นหลัก แจ้งผู้สร้างสั้น ๆ"])
+    profile = context.get("autonomy_profile", {})
+    if profile.get("needs_approval"):
+        lines.append(f"- **ต้องขออนุมัติ:** {', '.join(profile['needs_approval'][:4])}")
+    if context.get("session_reflections", 0):
+        lines.append(f"- **session reflections:** {context['session_reflections']}")
     lines.extend(
         [
             "",
