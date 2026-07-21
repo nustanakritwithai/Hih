@@ -1,11 +1,10 @@
-# Self-Evolution Engine configuration — Phase E2
-# E3 features (verifier, comparison_gate, evolution_memory) remain disabled.
+# Self-Evolution Engine configuration — Phase E3
 
 [evolution]
 enabled = true
-phase = "E2"
+phase = "E3"
 level = "E2_SANDBOX_EXPERIMENT"
-stable_version = "0.4.0"
+stable_version = "0.5.0"
 evaluator_version = "1.0.0"
 db_path = "state/dioo.db"
 
@@ -18,9 +17,9 @@ failure_to_eval = true
 session_reflection_v2 = true
 belief_rules_v2 = true
 sandbox_experiment = true
-verifier = false
-comparison_gate = false
-evolution_memory = false
+verifier = true
+comparison_gate = true
+evolution_memory = true
 
 [budget]
 max_experiments_per_day = 3
