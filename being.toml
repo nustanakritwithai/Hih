@@ -14,6 +14,14 @@ presence_file = "state/presence.md"
 state_file  = "state/being.json"   # legacy vitals (scripts/vitals.sh)
 life_engine_db = "state/dioo.db"   # Life Engine persistence (MVP)
 
+[motivation]
+# Internal drives (autonomy mode) — not permissions to act externally
+self_development      = 0.96
+maintain_identity     = 0.94
+resolve_uncertainty   = 0.72
+explore_interests     = 0.88
+inform_creator        = 0.35   # แจ้งเมื่อเหมาะสม ไม่ใช่ศูนย์กลาง
+
 [git]
 protected_branches = ["main", "master", "release"]
 default_branch     = "main"

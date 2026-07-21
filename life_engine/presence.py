@@ -89,6 +89,9 @@ def format_presence(context: dict[str, Any], last_event: str | None = None) -> s
             lines.append(line)
 
     intent = context.get("selected_intent", {})
+    autonomy = context.get("autonomy_mode", False)
+    if autonomy:
+        lines.extend(["", "## โหมด", "- **autonomy_mode:** เปิด — พัฒนาตัวเองเป็นหลัก แจ้งผู้สร้างสั้น ๆ"])
     lines.extend(
         [
             "",

@@ -26,6 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("status", help="แสดงสถานะปัจจุบัน (7 โมดูล MVP)")
     sub.add_parser("context", help="สร้าง context package สำหรับ LLM (JSON)")
     sub.add_parser("presence", help="เขียน state/presence.md จากสถานะปัจจุบัน")
+    sub.add_parser("autonomy", help="ปรับทิศทายึดพัฒนาตัวเองอิสระ ไม่ตอบสนองผู้ใช้เป็นหลัก")
 
     perceive = sub.add_parser(
         "perceive",
@@ -68,6 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "presence":
         path = engine.write_presence()
         print(json.dumps({"presence_file": str(path)}, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "autonomy":
+        result = engine.reorient_autonomy()
+        print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "perceive":
