@@ -1,0 +1,32 @@
+# Local secrets / env
+.env
+.env.local
+*.pem
+id_rsa
+id_rsa.pub
+
+# Build output
+bin/
+dist/
+build/
+*.log
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Local Claude state
+.claude/settings.local.json
+.claude/cache/
+
+# Life Engine persistence
+# dioo.db is local runtime; presence.md + being.json are synced snapshots (committed)
+state/dioo.db
+state/dioo.db-*
+
+# Python
+__pycache__/
+*.pyc
