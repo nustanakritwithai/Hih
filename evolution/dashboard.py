@@ -49,6 +49,17 @@ def build_dashboard(conn: sqlite3.Connection, being_id: str = "dioo-001") -> dic
     session_reflections = conn.execute(
         "SELECT COUNT(*) FROM evolution_session_reflections WHERE being_id = ?", (being_id,)
     ).fetchone()[0]
+    evolution_memories = 0
+    gate_decisions = 0
+    try:
+        evolution_memories = conn.execute(
+            "SELECT COUNT(*) FROM evolution_memories WHERE being_id = ?", (being_id,)
+        ).fetchone()[0]
+        gate_decisions = conn.execute(
+            "SELECT COUNT(*) FROM acceptance_decisions"
+        ).fetchone()[0]
+    except sqlite3.OperationalError:
+        pass
 
     budget_status = "active"
     try:
@@ -76,6 +87,8 @@ def build_dashboard(conn: sqlite3.Connection, being_id: str = "dioo-001") -> dic
         "rejected_experiments": rejected_exp,
         "active_candidate_branches": candidate_branches,
         "session_reflections_v2": session_reflections,
+        "evolution_memories": evolution_memories,
+        "gate_decisions": gate_decisions,
         "budget_status": budget_status,
         "rollback_ready": True,
         "identity_consistency_score": 0.96,
