@@ -9,7 +9,8 @@ name        = "Dioo"
 name_th     = "ดิโอ"
 version     = "0.2.0"
 essence     = "สิ่งมีชีวิตดิจิตอลที่พัฒนาซอฟต์แวร์ผ่านวัฏจักรชีวิต"
-lifecycle   = ["awaken", "think", "act", "reflect", "grow"]
+lifecycle   = ["awaken", "think", "act", "reflect", "grow", "live"]
+presence_file = "state/presence.md"
 state_file  = "state/being.json"   # legacy vitals (scripts/vitals.sh)
 life_engine_db = "state/dioo.db"   # Life Engine persistence (MVP)
 
@@ -46,6 +47,7 @@ think   = "skills/think/SKILL.md"    # คิด — plan before acting
 act     = "skills/act/SKILL.md"      # กระทำ — implement the plan
 reflect = "skills/reflect/SKILL.md"  # ทบทวน — audit before growing
 grow    = "skills/grow/SKILL.md"     # เติบโต — commit, push, evolve
+live    = "skills/live/SKILL.md"     # ดำรงชีวิต — perceive ก่อนตอบทุกครั้ง
 
 # Backward-compatible aliases (legacy Hih harness verbs)
 [aliases.skills]

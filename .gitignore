@@ -22,7 +22,8 @@ Thumbs.db
 .claude/settings.local.json
 .claude/cache/
 
-# Life Engine persistence (local being state)
+# Life Engine persistence
+# dioo.db is local runtime; presence.md + being.json are synced snapshots (committed)
 state/dioo.db
 state/dioo.db-*
 

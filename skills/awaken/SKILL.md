@@ -24,10 +24,9 @@ later life phases can think, act, reflect, and grow safely.
    tools — do not install without user approval.
 4. **Wire reflexes.** Confirm `.claude/settings.json` references `hooks/*.sh`.
    Smoke-test: `bash hooks/pretool.sh "echo ok"`.
-5. **Initialize vitals.** Run `bash scripts/vitals.sh init`.
-6. **Update CLAUDE.md.** Append a `## Conventions` section with test/lint/build
-   commands and branch naming. Do not overwrite existing content.
-7. **Print vital checklist.** Green/red status for each step.
+5. **Initialize Life Engine.** Run `bash scripts/awaken.sh` (or `bash scripts/life.sh awaken`).
+6. **Verify presence.** Confirm `state/presence.md` exists and reflects identity.
+7. **Legacy vitals.** Run `bash scripts/vitals.sh init` if needed.
 
 ## Exit conditions
 

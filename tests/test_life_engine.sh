@@ -48,6 +48,12 @@ trust = data['state']['social']['trust']
 assert 0 <= trust <= 1, trust
 \""
 
+echo "life_engine awaken + perceive"
+python3 -m life_engine --db "$DB" awaken >/dev/null
+python3 -m life_engine --db "$DB" perceive "ตื่นขึ้นมา" >/dev/null
+assert "awaken seeds goals" "python3 -m life_engine --db '$DB' context | grep -q active_goals"
+assert "perceive returns presence_file" "python3 -m life_engine --db '$DB' perceive 'hello' | grep -q presence_file"
+
 echo
 echo "$pass passed, $fail failed"
 rm -f "$DB"
