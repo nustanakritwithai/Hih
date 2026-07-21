@@ -28,4 +28,8 @@ echo "==> life engine tests"
 bash tests/test_life_engine.sh
 
 echo
+echo "==> evolution E1 tests"
+bash tests/test_evolution_e1.sh
+
+echo
 echo "all checks passed"
