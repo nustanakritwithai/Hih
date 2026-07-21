@@ -44,9 +44,8 @@ bash scripts/evolution.sh record "implement feature X" --status success
 | `reflect-session` | Session reflection v2 (E2) |
 | `evaluate-belief` | Belief candidate rules v2 (E2) |
 | `experiment-start` | Start sandbox experiment (E2) |
-| `experiment-run` | Run experiment comparison (E2) |
+| `experiment-run` | Run experiment; E3 adds verifier + gate + memory |
 | `budget-status` | Daily budget usage (E2) |
-| `experiment-run` | Runs experiment + verifier + gate + memory (E3 when enabled) |
 | `check-corruption` | Health check |
 | `check-boundary <action>` | Test immutable boundary |
 
