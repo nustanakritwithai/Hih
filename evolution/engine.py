@@ -11,14 +11,18 @@ from evolution.audit import log as audit_log
 from evolution.boundaries import check_boundary
 from evolution.config import load_config
 from evolution.dashboard import build_dashboard, format_dashboard_text
+from evolution.comparison import ComparisonEngine
 from evolution.diagnosis import FailureAnalyzer
 from evolution.evaluation import EvaluationEngine
+from evolution.gate import AcceptanceGate
+from evolution.memory import EvolutionMemoryStore
 from evolution.migrate import migrate
 from evolution.persistence import PersistenceManager
 from evolution.proposals import ProposalEngine
 from evolution.sandbox import SandboxExperimentRunner
 from evolution.session_reflection import SessionReflectionV2
 from evolution.trajectory import TrajectoryRecorder
+from evolution.verifier import ExperimentVerifier
 from evolution.util import now_iso
 
 
@@ -244,11 +248,46 @@ class EvolutionEngine:
         self.conn.commit()
         return result
 
-    def run_sandbox_experiment(self, experiment_id: str) -> dict[str, Any]:
+    def run_sandbox_experiment(self, experiment_id: str, being_id: str = "dioo-001") -> dict[str, Any]:
         if not self.config.get("features", {}).get("sandbox_experiment", False):
             return {"allowed": False, "status": "disabled", "reason": "feature_flag_off"}
         runner = SandboxExperimentRunner(self.conn, self.config, str(self.db_path))
         result = runner.run_experiment(experiment_id)
+        if result.get("status") not in ("completed", "failed"):
+            self.conn.commit()
+            return result
+
+        features = self.config.get("features", {})
+        if features.get("verifier", False):
+            verifier = ExperimentVerifier(self.conn, self.config)
+            verification = verifier.verify(
+                experiment_id,
+                result.get("producer_context_id", "unknown"),
+                result,
+            )
+            result["verification"] = verification
+        else:
+            verification = None
+
+        if features.get("comparison_gate", False):
+            comparison = ComparisonEngine(self.conn).build_report(
+                experiment_id,
+                result.get("baseline_results", []),
+                result.get("candidate_results", []),
+            )
+            result["comparison_report"] = comparison
+            gate = AcceptanceGate(self.conn).evaluate(experiment_id, comparison, verification)
+            result["gate_decision"] = gate
+            audit_log(
+                self.conn, "dioo", "acceptance_gate",
+                experiment_id, reason=gate.get("recommendation"),
+            )
+            if features.get("evolution_memory", False):
+                mem = EvolutionMemoryStore(self.conn).record_gate_decision(
+                    being_id, gate, comparison,
+                )
+                result["evolution_memory"] = mem
+
         self.conn.commit()
         return result
 

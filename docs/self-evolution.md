@@ -46,6 +46,7 @@ bash scripts/evolution.sh record "implement feature X" --status success
 | `experiment-start` | Start sandbox experiment (E2) |
 | `experiment-run` | Run experiment comparison (E2) |
 | `budget-status` | Daily budget usage (E2) |
+| `experiment-run` | Runs experiment + verifier + gate + memory (E3 when enabled) |
 | `check-corruption` | Health check |
 | `check-boundary <action>` | Test immutable boundary |
 
