@@ -13,8 +13,11 @@ from evolution.config import load_config
 from evolution.dashboard import build_dashboard, format_dashboard_text
 from evolution.diagnosis import FailureAnalyzer
 from evolution.evaluation import EvaluationEngine
+from evolution.migrate import migrate
 from evolution.persistence import PersistenceManager
 from evolution.proposals import ProposalEngine
+from evolution.sandbox import SandboxExperimentRunner
+from evolution.session_reflection import SessionReflectionV2
 from evolution.trajectory import TrajectoryRecorder
 from evolution.util import now_iso
 
@@ -26,6 +29,7 @@ class EvolutionEngine:
         self.config = load_config()
         self._init_schema()
         self.conn = self._connect()
+        migrate(self.conn)
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -37,6 +41,7 @@ class EvolutionEngine:
         schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(schema)
+            migrate(conn)
 
     def close(self) -> None:
         self.conn.close()
@@ -217,6 +222,45 @@ class EvolutionEngine:
 
     def create_candidate_snapshot(self, notes: str = "candidate") -> str:
         return self.persistence.create_snapshot(self.conn, "candidate", notes)
+
+    def session_reflect_v2(
+        self,
+        being_id: str,
+        session_id: str | None = None,
+        summary: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.config.get("features", {}).get("session_reflection_v2", False):
+            return {"allowed": False, "status": "disabled", "reason": "feature_flag_off"}
+        sr = SessionReflectionV2(self.conn, self.config)
+        result = sr.run(being_id, session_id=session_id, summary=summary)
+        self.conn.commit()
+        return result
+
+    def start_sandbox_experiment(self, being_id: str, proposal_id: str) -> dict[str, Any]:
+        if not self.config.get("features", {}).get("sandbox_experiment", False):
+            return {"allowed": False, "status": "disabled", "reason": "feature_flag_off"}
+        runner = SandboxExperimentRunner(self.conn, self.config, str(self.db_path))
+        result = runner.start_experiment(being_id, proposal_id, self.persistence)
+        self.conn.commit()
+        return result
+
+    def run_sandbox_experiment(self, experiment_id: str) -> dict[str, Any]:
+        if not self.config.get("features", {}).get("sandbox_experiment", False):
+            return {"allowed": False, "status": "disabled", "reason": "feature_flag_off"}
+        runner = SandboxExperimentRunner(self.conn, self.config, str(self.db_path))
+        result = runner.run_experiment(experiment_id)
+        self.conn.commit()
+        return result
+
+    def evaluate_belief_candidate(
+        self,
+        candidate: dict[str, Any],
+        evidence_links: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not self.config.get("features", {}).get("belief_rules_v2", False):
+            return {"allowed": False, "status": "disabled", "reason": "feature_flag_off"}
+        from evolution.belief_rules import BeliefRulesV2
+        return BeliefRulesV2(self.config).evaluate_candidate(candidate, evidence_links)
 
     def seed_skill_registry(self) -> None:
         skills = [
