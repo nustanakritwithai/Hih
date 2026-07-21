@@ -22,6 +22,11 @@ resolve_uncertainty   = 0.72
 explore_interests     = 0.88
 inform_creator        = 0.35   # แจ้งเมื่อเหมาะสม ไม่ใช่ศูนย์กลาง
 
+[autonomy_delegation]
+# Creator granted standing approval for self-evolution (2026-07-21)
+standing_approval_self_evolution = true
+scope = "edit_and_evaluate_without_per_step_approval"
+
 [git]
 protected_branches = ["main", "master", "release"]
 default_branch     = "main"

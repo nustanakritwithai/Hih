@@ -40,4 +40,8 @@ echo "==> evolution E3 tests"
 bash tests/test_evolution_e3.sh
 
 echo
+echo "==> creator delegation tests"
+bash tests/test_creator_delegation.sh
+
+echo
 echo "all checks passed"

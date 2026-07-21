@@ -97,6 +97,7 @@ def build_dashboard(conn: sqlite3.Connection, being_id: str = "dioo-001") -> dic
         "current_evolution_focus": "Belief evidence quality",
         "features_enabled": config.get("features", {}),
         "budget": config.get("budget", {}),
+        "creator_delegation": config.get("creator_delegation", {}),
     }
 
 
@@ -112,6 +113,7 @@ def format_dashboard_text(d: dict[str, Any]) -> str:
         f"  Pending proposals: {d['pending_proposals']}",
         f"  Experiments: {d['active_experiments']} active | {d['accepted_experiments']} accepted | {d['rejected_experiments']} rejected",
         f"  Candidate branches: {d.get('active_candidate_branches', 0)} | Budget: {d.get('budget_status', 'active')}",
+        f"  Creator delegation: {'active' if d.get('creator_delegation', {}).get('granted') else 'inactive'}",
         f"  Focus: {d['current_evolution_focus']}",
     ]
     return "\n".join(lines)

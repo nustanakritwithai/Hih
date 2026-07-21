@@ -10,7 +10,9 @@ DEFAULT_AUTONOMY_PROFILE: dict[str, str] = {
     "personality_adjustment": "limited",
     "goal_creation": "allowed_within_mission",
     "belief_formation": "allowed",
-    "code_changes": "requires_approval",
+    "self_evolution_edit": "allowed",
+    "self_evolution_evaluate": "allowed",
+    "code_changes": "allowed_within_sandbox",
     "external_messages": "requires_approval",
     "tool_usage": "restricted",
     "identity_core_changes": "forbidden",
@@ -41,7 +43,7 @@ def profile_summary(profile: dict[str, str] | None = None) -> dict[str, Any]:
         "profile": p,
         "can_change": [
             k for k, v in p.items()
-            if v in ("allowed", "limited", "allowed_within_mission")
+            if v in ("allowed", "limited", "allowed_within_mission", "allowed_within_sandbox")
         ],
         "cannot_change": [k for k, v in p.items() if v == "forbidden"],
         "needs_approval": [k for k, v in p.items() if v == "requires_approval"],

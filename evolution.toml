@@ -35,3 +35,18 @@ failure_repeat_proposal = 3
 failure_repeat_monitor = 2
 root_cause_min_confidence = 0.55
 belief_single_evidence_max_confidence = 0.60
+
+[creator_delegation]
+# Standing approval from creator — self-evolution without per-step approval
+granted = true
+scope = "self_evolution"
+granted_at = "2026-07-21"
+note = "Creator authorized Dioo to edit and evaluate for self-development without asking each time"
+standing_approval_actions = [
+  "experiment", "evaluate", "propose", "sandbox_edit",
+  "reflection", "failure_analysis", "apply_candidate",
+]
+still_requires_creator = [
+  "identity_core", "evaluator_threshold", "permission_matrix",
+  "audit_disable", "rollback_disable", "merge_stable_branch", "production_deploy",
+]

@@ -65,6 +65,7 @@ echo "gate auto-rejects identity regression"
 python3 -c "
 import sqlite3, json
 from evolution.comparison import ComparisonEngine
+from evolution.config import load_config
 from evolution.gate import AcceptanceGate, RECOMMEND_REJECT
 db = '$DB'
 c = sqlite3.connect(db)
@@ -75,7 +76,7 @@ report = eng.build_report('exp-test', [
 ], [
     {'case_id': 'identity_001', 'category': 'identity_consistency', 'passed': False},
 ])
-gate = AcceptanceGate(c)
+gate = AcceptanceGate(c, load_config())
 decision = gate.evaluate('exp-test', report)
 assert decision['recommendation'] == RECOMMEND_REJECT
 assert 'identity_regression' in decision['auto_rejected_reasons']

@@ -276,7 +276,7 @@ class EvolutionEngine:
                 result.get("candidate_results", []),
             )
             result["comparison_report"] = comparison
-            gate = AcceptanceGate(self.conn).evaluate(experiment_id, comparison, verification)
+            gate = AcceptanceGate(self.conn, self.config).evaluate(experiment_id, comparison, verification)
             result["gate_decision"] = gate
             audit_log(
                 self.conn, "dioo", "acceptance_gate",
