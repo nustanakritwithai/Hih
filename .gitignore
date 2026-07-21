@@ -25,3 +25,7 @@ Thumbs.db
 # Life Engine persistence (local being state)
 state/dioo.db
 state/dioo.db-*
+
+# Python
+__pycache__/
+*.pyc
