@@ -85,6 +85,8 @@ class ReadOnlyMemoryAuditor:
         being_id: str = "dioo-001",
         fixture_path: str | Path | None = None,
         compression_summary: str | None = None,
+        run_id: str | None = None,
+        trigger_context: str | None = None,
     ) -> dict[str, Any]:
         """Aggregate-only runtime audit — no raw memory content."""
         with LifeEngineReadOnlyAdapter(str(db_path), use_snapshot=True) as adapter:
@@ -113,6 +115,8 @@ class ReadOnlyMemoryAuditor:
             snapshot_info=snapshot_info,
             adapter_errors=adapter_errors,
             comparison=comparison,
+            run_id=run_id,
+            trigger_context=trigger_context,
         )
 
     def compare_fixture_runtime(
