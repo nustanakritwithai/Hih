@@ -44,4 +44,8 @@ echo "==> creator delegation tests"
 bash tests/test_creator_delegation.sh
 
 echo
+echo "==> memory auditor M1 tests"
+bash tests/test_memory_auditor.sh
+
+echo
 echo "all checks passed"
