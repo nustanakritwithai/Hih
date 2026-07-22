@@ -30,6 +30,15 @@ def main(argv: list[str] | None = None) -> int:
     compare_p.add_argument("--being-id", default="dioo-001")
     compare_p.add_argument("--output", "-o", default=None)
 
+    sanitized_p = sub.add_parser(
+        "runtime-sanitized",
+        help="Sanitized aggregate-only runtime audit (no raw memory)",
+    )
+    sanitized_p.add_argument("--db", default="state/dioo.db")
+    sanitized_p.add_argument("--being-id", default="dioo-001")
+    sanitized_p.add_argument("--fixture", default=None, help="Optional fixture for gap analysis")
+    sanitized_p.add_argument("--output", "-o", default=None)
+
     args = parser.parse_args(argv)
     auditor = ReadOnlyMemoryAuditor()
 
@@ -43,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
         )
     elif args.command == "runtime":
         report = auditor.audit_runtime(args.db, args.being_id)
+    elif args.command == "runtime-sanitized":
+        report = auditor.audit_runtime_sanitized(
+            args.db,
+            args.being_id,
+            fixture_path=args.fixture,
+        )
     else:
         report = auditor.compare_fixture_runtime(args.fixture, args.db, args.being_id)
 

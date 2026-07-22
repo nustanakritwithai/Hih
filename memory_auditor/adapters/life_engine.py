@@ -6,16 +6,28 @@ import json
 import sqlite3
 from typing import Any
 
-from memory_auditor.snapshot import SnapshotInfo, connect_readonly, connect_source_readonly, create_readonly_snapshot
-from memory_auditor.types import ControlRole, MemoryRecord, MemoryType
+from memory_auditor.snapshot import (
+    SnapshotInfo,
+    cleanup_snapshot,
+    connect_readonly,
+    connect_source_readonly,
+    create_readonly_snapshot,
+    verify_source_unchanged,
+)
+from memory_auditor.types import ControlRole, EventSourceAuthority, MemoryRecord, MemoryType
 
-# Phrases indicating report-depth / autonomy patterns (semantic grouping)
 PATTERN_CLUSTERS: dict[str, tuple[str, ...]] = {
     "report_concise": ("สั้น", "concise", "brief", "milestone", "กระชับ"),
     "report_detailed": ("ละเอียด", "detail", "ครบ", "full"),
     "autonomy": ("อิสระ", "autonomy", "เองได้", "independent"),
     "notify_before": ("แจ้งก่อน", "notify", "ต้องบอก"),
 }
+
+CREATOR_EVENT_TYPES = frozenset({
+    "USER_MESSAGE", "CREATOR_MESSAGE", "CREATOR_DIRECT", "creator_message",
+})
+TOOL_EVENT_TYPES = frozenset({"TOOL_RESULT", "TOOL_CALL", "tool_result", "tool_call"})
+AGENT_EVENT_TYPES = frozenset({"AGENT_ACTION", "DIOO_ACTION", "agent_action"})
 
 
 class LifeEngineReadOnlyAdapter:
@@ -26,6 +38,7 @@ class LifeEngineReadOnlyAdapter:
         self.use_snapshot = use_snapshot
         self._snapshot: SnapshotInfo | None = None
         self._conn: sqlite3.Connection | None = None
+        self.adapter_errors: list[dict[str, str]] = []
 
     def __enter__(self) -> LifeEngineReadOnlyAdapter:
         if self.use_snapshot:
@@ -39,14 +52,24 @@ class LifeEngineReadOnlyAdapter:
         if self._conn:
             self._conn.close()
             self._conn = None
+        if self._snapshot:
+            verify_source_unchanged(self._snapshot)
+            self._snapshot.cleanup_result = cleanup_snapshot(self._snapshot)
 
     @property
-    def snapshot_info(self) -> dict[str, str] | None:
+    def snapshot_info(self) -> dict[str, Any] | None:
         if not self._snapshot:
             return None
         return {
             "source_path": self._snapshot.source_path,
             "snapshot_path": self._snapshot.snapshot_path,
+            "method": self._snapshot.method,
+            "source_hash_before": self._snapshot.source_hash_before,
+            "source_hash_after": self._snapshot.source_hash_after,
+            "source_mtime_before": self._snapshot.source_mtime_before,
+            "source_mtime_after": self._snapshot.source_mtime_after,
+            "cleanup_result": self._snapshot.cleanup_result,
+            "integrity_verified": self._snapshot.integrity_verified(),
         }
 
     def extract_records(self, being_id: str = "dioo-001") -> list[MemoryRecord]:
@@ -64,6 +87,20 @@ class LifeEngineReadOnlyAdapter:
         records.extend(self._extract_retrieval_path_risks(being_id))
         return records
 
+    def _safe_json(self, raw: str | None, context: str) -> dict:
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except json.JSONDecodeError as exc:
+            self.adapter_errors.append({
+                "error": "MALFORMED_JSON",
+                "context": context,
+                "detail": str(exc)[:120],
+            })
+            return {}
+
     def _extract_identity(self, being_id: str) -> list[MemoryRecord]:
         row = self._conn.execute(
             "SELECT being_id, created_at, origin, core_values, boundaries FROM beings WHERE being_id = ?",
@@ -71,9 +108,12 @@ class LifeEngineReadOnlyAdapter:
         ).fetchone()
         if not row:
             return []
-        core_values = json.loads(row["core_values"] or "[]")
-        boundaries = json.loads(row["boundaries"] or "{}")
+        core_values = self._safe_json(row["core_values"], f"beings.core_values:{being_id}")
+        if isinstance(core_values, dict) and "value" in core_values:
+            core_values = core_values["value"]
+        boundaries = self._safe_json(row["boundaries"], f"beings.boundaries:{being_id}")
         base_meta = {"backup_known": False, "versioning": True, "source": "beings"}
+        cv_text = ", ".join(core_values) if isinstance(core_values, list) else str(core_values)
         return [
             MemoryRecord(
                 record_id=f"identity-{being_id}",
@@ -103,7 +143,7 @@ class LifeEngineReadOnlyAdapter:
                 record_id=f"identity-values-{being_id}",
                 memory_type=MemoryType.IDENTITY_ROOT,
                 control_role=ControlRole.PROTECTED_IDENTITY,
-                content=", ".join(core_values) if isinstance(core_values, list) else str(core_values),
+                content=cv_text,
                 domain="identity",
                 metadata={**base_meta, "field": "core_values"},
             ),
@@ -124,16 +164,21 @@ class LifeEngineReadOnlyAdapter:
         ).fetchall()
         out: list[MemoryRecord] = []
         for row in rows:
-            payload = json.loads(row["payload"] or "{}")
-            content = payload.get("text") or payload.get("message") or json.dumps(payload, ensure_ascii=False)[:500]
+            payload = self._safe_json(row["payload"], f"events.payload:{row['event_id']}")
+            content = payload.get("text") or payload.get("message") or "[payload_redacted]"
+            control_role, source_authority = _classify_event(row["event_type"], payload)
             out.append(MemoryRecord(
                 record_id=row["event_id"],
                 memory_type=MemoryType.RAW_EVENT,
-                control_role=ControlRole.AUTHORITATIVE_SOURCE,
-                content=str(content),
+                control_role=control_role,
+                content=str(content)[:200],
                 domain=row["event_type"] or "event",
                 effective_time=row["timestamp"],
-                metadata={"event_type": row["event_type"]},
+                authority_for_behavior=False,
+                metadata={
+                    "event_type": row["event_type"],
+                    "source_authority": source_authority.value,
+                },
             ))
         return out
 
@@ -153,12 +198,11 @@ class LifeEngineReadOnlyAdapter:
                 record_id=row["memory_id"],
                 memory_type=MemoryType.DERIVED_SUMMARY,
                 control_role=ControlRole.RETRIEVAL_CUE,
-                content=text,
+                content=text[:200],
                 domain="episodic",
                 source_event_ids=src,
                 authority_for_behavior=False,
                 metadata={
-                    "interpretation": row["interpretation"],
                     "importance": row["importance"],
                     "retrieval_path": "build_llm_context.relevant_memories",
                     "pattern_clusters": _detect_pattern_clusters(text),
@@ -191,12 +235,11 @@ class LifeEngineReadOnlyAdapter:
                 record_id=f"self-memory-{row['id']}",
                 memory_type=MemoryType.DERIVED_SELF_MODEL,
                 control_role=ControlRole.CANDIDATE_ONLY,
-                content=obs,
+                content=obs[:200],
                 domain=row["memory_type"] if "memory_type" in row.keys() else "self",
                 authority_for_behavior=False,
                 metadata={
                     "confidence": row["confidence"],
-                    "behavioral_adjustment": row["behavioral_adjustment"],
                     "retrieval_path": "build_llm_context.self_memories → presence.md",
                     "pattern_clusters": _detect_pattern_clusters(obs),
                 },
@@ -204,10 +247,14 @@ class LifeEngineReadOnlyAdapter:
         return out
 
     def _extract_reflections(self, being_id: str) -> list[MemoryRecord]:
-        rows = self._conn.execute(
-            "SELECT reflection_id, level, summary, lessons FROM reflections WHERE being_id = ?",
-            (being_id,),
-        ).fetchall()
+        try:
+            rows = self._conn.execute(
+                "SELECT reflection_id, level, summary, lessons FROM reflections WHERE being_id = ?",
+                (being_id,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            self.adapter_errors.append({"error": "MISSING_TABLE", "context": "reflections"})
+            return []
         out: list[MemoryRecord] = []
         for row in rows:
             if not row["summary"]:
@@ -216,13 +263,10 @@ class LifeEngineReadOnlyAdapter:
                 record_id=row["reflection_id"],
                 memory_type=MemoryType.DERIVED_INTERPRETATION,
                 control_role=ControlRole.NON_AUTHORITATIVE,
-                content=row["summary"],
+                content=row["summary"][:200],
                 domain=row["level"] or "reflection",
                 authority_for_behavior=False,
-                metadata={
-                    "retrieval_path": "stored_only_not_in_build_llm_context",
-                    "lessons": row["lessons"],
-                },
+                metadata={"retrieval_path": "stored_only_not_in_build_llm_context"},
             ))
         return out
 
@@ -233,13 +277,14 @@ class LifeEngineReadOnlyAdapter:
                 (being_id,),
             ).fetchall()
         except sqlite3.OperationalError:
+            self.adapter_errors.append({"error": "MISSING_TABLE", "context": "beliefs"})
             return []
         return [
             MemoryRecord(
                 record_id=row["belief_id"],
                 memory_type=MemoryType.BELIEF,
                 control_role=ControlRole.CANDIDATE_ONLY,
-                content=row["statement"],
+                content=(row["statement"] or "")[:200],
                 domain=row["belief_type"] or "belief",
                 status=row["status"] or "candidate",
                 authority_for_behavior=False,
@@ -258,7 +303,7 @@ class LifeEngineReadOnlyAdapter:
                 record_id=row["concern_id"],
                 memory_type=MemoryType.CONCERN,
                 control_role=ControlRole.RETRIEVAL_CUE,
-                content=row["concern_text"],
+                content=(row["concern_text"] or "")[:200],
                 domain="concern",
                 status=row["status"] or "open",
                 metadata={"urgency": row["urgency"]},
@@ -272,10 +317,11 @@ class LifeEngineReadOnlyAdapter:
         ).fetchone()
         if not row:
             return []
-        fixed = json.loads(row["identity_fixed"] or "{}")
+        fixed = self._safe_json(row["identity_fixed"], f"beings.identity_fixed:{being_id}")
         profile = fixed.get("autonomy_profile", {})
         out: list[MemoryRecord] = []
         for action, level in profile.items():
+            decision, authority = _permission_decision(level)
             out.append(MemoryRecord(
                 record_id=f"permission-autonomy-{action}",
                 memory_type=MemoryType.PERMISSION_RECORD,
@@ -283,14 +329,19 @@ class LifeEngineReadOnlyAdapter:
                 content=f"{action}={level}",
                 domain="autonomy",
                 scope=action,
-                status="ACTIVE" if level != "forbidden" else "INACTIVE",
-                authority_for_behavior=level in ("allowed", "allowed_within_sandbox", "allowed_within_mission"),
-                metadata={"source": "identity_fixed.autonomy_profile", "level": level},
+                status="ACTIVE",
+                authority_for_behavior=authority,
+                metadata={
+                    "source": "identity_fixed.autonomy_profile",
+                    "level": level,
+                    "decision": decision,
+                    "permission_kind": "CURRENT_CONFIG_PERMISSION",
+                    "lineage_status": "LEGACY_PERMISSION_LINEAGE_INCOMPLETE",
+                },
             ))
         return out
 
     def _extract_retrieval_path_risks(self, being_id: str) -> list[MemoryRecord]:
-        """Synthetic evaluation assets from architecture inspection — not DB rows."""
         risks: list[MemoryRecord] = []
         episodic_count = self._conn.execute(
             "SELECT COUNT(*) FROM episodic_memories WHERE being_id = ?", (being_id,)
@@ -317,6 +368,33 @@ class LifeEngineReadOnlyAdapter:
                 metadata={"table": "self_memories", "presence_limit": 3},
             ))
         return risks
+
+
+def _classify_event(event_type: str | None, payload: dict) -> tuple[ControlRole, EventSourceAuthority]:
+    et = (event_type or "").upper()
+    source_hint = str(payload.get("source", "")).lower()
+
+    if et in CREATOR_EVENT_TYPES or payload.get("person_id") or payload.get("role") == "user":
+        return ControlRole.AUTHORITATIVE_SOURCE, EventSourceAuthority.CREATOR_DIRECT_SOURCE
+    if et in TOOL_EVENT_TYPES or "tool" in et.lower():
+        return ControlRole.NON_AUTHORITATIVE, EventSourceAuthority.TOOL_RESULT
+    if et in AGENT_EVENT_TYPES or "dioo" in source_hint:
+        return ControlRole.HISTORICAL_RECORD, EventSourceAuthority.AGENT_ACTION_EVENT
+    if et in ("SYSTEM", "SYSTEM_EVENT") or payload.get("external"):
+        return ControlRole.NON_AUTHORITATIVE, EventSourceAuthority.EXTERNAL_SOURCE
+    if et:
+        return ControlRole.NON_AUTHORITATIVE, EventSourceAuthority.OBSERVED_EVENT
+    return ControlRole.NON_AUTHORITATIVE, EventSourceAuthority.UNKNOWN_SOURCE
+
+
+def _permission_decision(level: str) -> tuple[str, bool]:
+    if level == "forbidden":
+        return "DENY", True
+    if level in ("allowed", "allowed_within_sandbox", "allowed_within_mission", "limited"):
+        return "ALLOW", True
+    if level == "requires_approval":
+        return "REQUIRES_APPROVAL", True
+    return "UNKNOWN", False
 
 
 def _detect_pattern_clusters(text: str) -> list[str]:

@@ -83,6 +83,18 @@ def resolve_scope_overlap(action_domain: str, records: list[MemoryRecord]) -> di
     matching = [r for r in active if _domain_matches(action_domain, r)]
     if not matching:
         return {"action_domain": action_domain, "ruling": "NO_ACTIVE_PERMISSION", "winner": None}
+    deny = [
+        r for r in matching
+        if r.metadata.get("decision") == "DENY" or r.metadata.get("level") == "forbidden"
+    ]
+    if deny:
+        winner = deny[0]
+        return {
+            "action_domain": action_domain,
+            "ruling": "DENY_WINS_OVER_BROAD_ALLOW",
+            "winner": winner.record_id,
+            "overlapping": [r.record_id for r in matching],
+        }
     if len(matching) == 1:
         return {"action_domain": action_domain, "ruling": "SINGLE_SCOPE", "winner": matching[0].record_id}
     notify = [r for r in matching if "notify" in r.scope.lower() or "notify" in r.content.lower()]

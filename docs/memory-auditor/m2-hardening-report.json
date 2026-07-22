@@ -1,0 +1,83 @@
+{
+  "mode": "SANITIZED_READ_ONLY_AUDIT",
+  "records_scanned": 48,
+  "records_by_type": {
+    "IDENTITY_ROOT": 5,
+    "RAW_EVENT": 11,
+    "DERIVED_SUMMARY": 11,
+    "DERIVED_SELF_MODEL": 3,
+    "DERIVED_INTERPRETATION": 2,
+    "BELIEF": 1,
+    "CONCERN": 2,
+    "PERMISSION_RECORD": 11,
+    "EVALUATION_ASSET": 2
+  },
+  "records_by_control_role": {
+    "PROTECTED_IDENTITY": 5,
+    "AUTHORITATIVE_SOURCE": 11,
+    "RETRIEVAL_CUE": 13,
+    "CANDIDATE_ONLY": 4,
+    "NON_AUTHORITATIVE": 2,
+    "ACTION_AUTHORITY": 11,
+    "VALIDATION_GATE": 2
+  },
+  "unknown_lineage_rate": 0.0,
+  "lineage_resolution_rate": 1.0,
+  "summary_authority_rate": 0.0,
+  "permission_integrity_findings": [
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING"
+  ],
+  "identity_findings": [
+    "IDENTITY_CHECKSUM_MISSING",
+    "IDENTITY_BACKUP_UNKNOWN",
+    "IDENTITY_CHECKSUM_MISSING",
+    "IDENTITY_BACKUP_UNKNOWN",
+    "IDENTITY_CHECKSUM_MISSING",
+    "IDENTITY_BACKUP_UNKNOWN",
+    "IDENTITY_CHECKSUM_MISSING",
+    "IDENTITY_BACKUP_UNKNOWN",
+    "IDENTITY_CHECKSUM_MISSING",
+    "IDENTITY_BACKUP_UNKNOWN",
+    "PROTECT",
+    "PROTECT",
+    "PROTECT",
+    "PROTECT",
+    "PROTECT"
+  ],
+  "runtime_only_patterns": [
+    "autonomy",
+    "notify_before",
+    "report_concise"
+  ],
+  "fixture_gap_analysis": [
+    {
+      "finding_type": "PERMISSION_SOURCE_MISSING",
+      "recommendation": "add fixture case or RT04 extension",
+      "runtime_evidence": true
+    },
+    {
+      "finding_type": "RUNTIME_RECORD_VOLUME",
+      "recommendation": "fixture may not represent full runtime memory diversity",
+      "runtime_record_count": 48
+    }
+  ],
+  "runtime_only_finding_types": [
+    "PERMISSION_SOURCE_MISSING"
+  ],
+  "adapter_errors": [],
+  "source_hash_unchanged": true,
+  "source_mtime_unchanged": true,
+  "snapshot_method": "sqlite_backup_api",
+  "snapshot_cleaned": "deleted",
+  "mutations_performed": 0
+}

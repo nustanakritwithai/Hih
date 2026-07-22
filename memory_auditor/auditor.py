@@ -23,6 +23,7 @@ from memory_auditor.metrics import MetricsTimer, compute_metrics
 from memory_auditor.permission import audit_permission_integrity
 from memory_auditor.report import generate_report
 from memory_auditor.retrieval import audit_retrieval_policy, query_routing_table
+from memory_auditor.sanitized_report import build_sanitized_report
 from memory_auditor.types import (
     ControlRole,
     LineageEdge,
@@ -66,13 +67,52 @@ class ReadOnlyMemoryAuditor:
         """Live read-only audit via DB snapshot — never writes to source."""
         with LifeEngineReadOnlyAdapter(str(db_path), use_snapshot=True) as adapter:
             records = adapter.extract_records(being_id)
-            snapshot_info = adapter.snapshot_info
-        return self.audit(
+            adapter_errors = list(adapter.adapter_errors)
+        snapshot_info = adapter.snapshot_info
+        report = self.audit(
             records,
             explicit_edges=None,
             compression_summary=compression_summary,
             audit_source="runtime_snapshot",
             snapshot_info=snapshot_info,
+        )
+        report["adapter_errors"] = adapter_errors
+        return report
+
+    def audit_runtime_sanitized(
+        self,
+        db_path: str | Path,
+        being_id: str = "dioo-001",
+        fixture_path: str | Path | None = None,
+        compression_summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Aggregate-only runtime audit — no raw memory content."""
+        with LifeEngineReadOnlyAdapter(str(db_path), use_snapshot=True) as adapter:
+            records = adapter.extract_records(being_id)
+            adapter_errors = list(adapter.adapter_errors)
+        snapshot_info = adapter.snapshot_info
+        full_report = self.audit(
+            records,
+            explicit_edges=None,
+            compression_summary=compression_summary,
+            audit_source="runtime_snapshot",
+            snapshot_info=snapshot_info,
+        )
+        comparison = None
+        if fixture_path:
+            fixture_records, fixture_edges, fixture_meta = self.load_fixture(fixture_path)
+            fixture_report = self.audit(
+                fixture_records,
+                explicit_edges=fixture_edges,
+                compression_summary=compression_summary or fixture_meta.get("compression_summary"),
+                audit_source="fixture",
+            )
+            comparison = compare_reports(fixture_report, full_report)
+        return build_sanitized_report(
+            full_report,
+            snapshot_info=snapshot_info,
+            adapter_errors=adapter_errors,
+            comparison=comparison,
         )
 
     def compare_fixture_runtime(
