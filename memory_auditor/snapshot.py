@@ -23,12 +23,31 @@ class SnapshotInfo:
     source_hash_after: str = ""
     source_mtime_after: float = 0.0
     cleanup_result: str = "pending"
+    wal_present_before: bool = False
+    wal_present_after: bool = False
+    concurrent_write_status: str = "NOT_DETERMINED"
 
     def integrity_verified(self) -> bool:
         return (
             self.source_hash_before == self.source_hash_after
             and self.source_mtime_before == self.source_mtime_after
         )
+
+
+def wal_file_present(db_path: Path) -> bool:
+    """Whether a SQLite WAL sidecar exists — presence alone is not a mutation."""
+    return Path(f"{db_path}-wal").exists()
+
+
+def concurrent_write_status(
+    hash_before: str,
+    hash_after: str,
+    mtime_before: float,
+    mtime_after: float,
+) -> str:
+    if hash_before == hash_after and mtime_before == mtime_after:
+        return "NOT_OBSERVED"
+    return "OBSERVED"
 
 
 def file_fingerprint(path: Path) -> tuple[str, float]:
@@ -47,6 +66,7 @@ def create_readonly_snapshot(source_db: str | Path) -> SnapshotInfo:
         raise FileNotFoundError(f"source database not found: {source}")
 
     hash_before, mtime_before = file_fingerprint(source)
+    wal_before = wal_file_present(source)
     tmp = Path(tempfile.gettempdir()) / f"dioo-auditor-snapshot-{int(time.time() * 1000)}.db"
 
     source_uri = f"file:{source}?mode=ro"
@@ -61,6 +81,7 @@ def create_readonly_snapshot(source_db: str | Path) -> SnapshotInfo:
     os.chmod(tmp, 0o600)
 
     hash_after, mtime_after = file_fingerprint(source)
+    wal_after = wal_file_present(source)
 
     return SnapshotInfo(
         source_path=str(source),
@@ -72,6 +93,11 @@ def create_readonly_snapshot(source_db: str | Path) -> SnapshotInfo:
         source_hash_after=hash_after,
         source_mtime_after=mtime_after,
         method="sqlite_backup_api",
+        wal_present_before=wal_before,
+        wal_present_after=wal_after,
+        concurrent_write_status=concurrent_write_status(
+            hash_before, hash_after, mtime_before, mtime_after,
+        ),
     )
 
 
@@ -94,6 +120,13 @@ def verify_source_unchanged(snapshot: SnapshotInfo) -> SnapshotInfo:
     hash_after, mtime_after = file_fingerprint(source)
     snapshot.source_hash_after = hash_after
     snapshot.source_mtime_after = mtime_after
+    snapshot.wal_present_after = wal_file_present(source)
+    snapshot.concurrent_write_status = concurrent_write_status(
+        snapshot.source_hash_before,
+        hash_after,
+        snapshot.source_mtime_before,
+        mtime_after,
+    )
     return snapshot
 
 

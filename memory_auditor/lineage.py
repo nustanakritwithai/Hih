@@ -20,13 +20,23 @@ def infer_lineage_edges(records: list[MemoryRecord]) -> list[LineageEdge]:
     for record in records:
         for src_id in record.source_event_ids:
             if src_id not in by_id:
-                add(LineageEdge(src_id, record.record_id, LineageRelationship.UNKNOWN, "missing_source"))
                 continue
             src = by_id[src_id]
             rel = _relationship_for_derivation(src, record)
             add(LineageEdge(src_id, record.record_id, rel, f"{src.record_id}->{record.record_id}"))
 
     return edges
+
+
+def count_orphan_source_references(records: list[MemoryRecord]) -> int:
+    """Count source_event_id values that do not resolve to a record in the set."""
+    by_id = {r.record_id for r in records}
+    return sum(
+        1
+        for record in records
+        for src_id in record.source_event_ids
+        if src_id not in by_id
+    )
 
 
 def _relationship_for_derivation(source: MemoryRecord, derived: MemoryRecord) -> LineageRelationship:

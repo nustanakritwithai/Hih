@@ -112,9 +112,7 @@ test("shared_domain_no_causal_edge", dup["classification"] != "DERIVED_DUPLICATE
 print("unknown lineage")
 unknown_rec = record(record_id="X", memory_type=MemoryType.DERIVED_SUMMARY, source_event_ids=("MISSING",))
 rep = auditor.audit([unknown_rec])
-test("unknown_lineage_when_evidence_missing", any(
-    e.get("relationship") == "UNKNOWN" for e in rep["lineage_findings"]
-))
+test("unknown_lineage_when_evidence_missing", rep["metrics"].get("orphan_source_reference_count", 0) == 1)
 
 print("cross type merge blocked")
 blocks = check_merge_blocked({

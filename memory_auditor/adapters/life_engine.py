@@ -68,6 +68,9 @@ class LifeEngineReadOnlyAdapter:
             "source_hash_after": self._snapshot.source_hash_after,
             "source_mtime_before": self._snapshot.source_mtime_before,
             "source_mtime_after": self._snapshot.source_mtime_after,
+            "wal_present_before": self._snapshot.wal_present_before,
+            "wal_present_after": self._snapshot.wal_present_after,
+            "concurrent_write_status": self._snapshot.concurrent_write_status,
             "cleanup_result": self._snapshot.cleanup_result,
             "integrity_verified": self._snapshot.integrity_verified(),
         }

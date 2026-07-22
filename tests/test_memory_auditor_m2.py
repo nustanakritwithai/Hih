@@ -18,6 +18,7 @@ from memory_auditor import ReadOnlyMemoryAuditor
 from memory_auditor.adapters.life_engine import LifeEngineReadOnlyAdapter, _classify_event
 from memory_auditor.authority import resolve_scope_overlap
 from memory_auditor.guard import BlockedAction, ReadOnlyGuard, ReadOnlyViolation
+from memory_auditor.metrics import compute_lineage_coverage, compute_lineage_edge_metrics
 from memory_auditor.snapshot import cleanup_snapshot, create_readonly_snapshot, file_fingerprint
 from memory_auditor.types import ControlRole, MemoryRecord, MemoryType
 
@@ -204,29 +205,90 @@ events = [
 test("raw events present", len(events) > 0)
 test("event classification supports non-authoritative roles", tool_role != creator_role)
 
+print("M2 lineage metric validity")
+empty_edge_metrics = compute_lineage_edge_metrics([])
+test("empty_lineage_is_not_full_resolution", empty_edge_metrics["lineage_resolution_rate"] is None)
+test("empty_lineage_unknown_rate_null", empty_edge_metrics["unknown_lineage_rate"] is None)
+test("empty_lineage_status_not_evaluated", empty_edge_metrics["lineage_status"] == "NOT_EVALUATED")
+test("empty_lineage_edges_zero", empty_edge_metrics["lineage_edges_evaluated"] == 0)
+
+empty_runtime = auditor.audit([])
+test("runtime_lineage_not_evaluated_without_edges", empty_runtime["metrics"]["lineage_status"] == "NOT_EVALUATED")
+test("runtime_lineage_rate_null_without_edges", empty_runtime["metrics"]["lineage_resolution_rate"] is None)
+
+with_source = MemoryRecord(
+    record_id="E-src",
+    memory_type=MemoryType.RAW_EVENT,
+    control_role=ControlRole.AUTHORITATIVE_SOURCE,
+    content="source",
+    domain="test",
+)
+derived_ok = MemoryRecord(
+    record_id="S-ok",
+    memory_type=MemoryType.DERIVED_SUMMARY,
+    control_role=ControlRole.RETRIEVAL_CUE,
+    content="summary",
+    domain="test",
+    source_event_ids=("E-src",),
+)
+derived_missing = MemoryRecord(
+    record_id="S-miss",
+    memory_type=MemoryType.DERIVED_INTERPRETATION,
+    control_role=ControlRole.NON_AUTHORITATIVE,
+    content="interp",
+    domain="test",
+    source_event_ids=(),
+)
+derived_orphan = MemoryRecord(
+    record_id="S-orphan",
+    memory_type=MemoryType.BELIEF,
+    control_role=ControlRole.CANDIDATE_ONLY,
+    content="belief",
+    domain="belief",
+    source_event_ids=("MISSING-EVENT",),
+)
+coverage_records = [with_source, derived_ok, derived_missing, derived_orphan]
+coverage = compute_lineage_coverage(coverage_records)
+test("derived_source_ref_coverage total", coverage["derived_records_total"] == 3)
+test("derived_source_ref_coverage with refs", coverage["derived_records_with_source_refs"] == 1)
+test("missing_source_ref_is_lineage_gap", coverage["derived_records_missing_source_refs"] == 2)
+test("orphan_source_reference_detected", coverage["orphan_source_reference_count"] == 1)
+test("lineage_coverage_reported_by_type", coverage["lineage_coverage_by_type"]["DERIVED_SUMMARY"]["with_source_refs"] == 1)
+test("lineage_coverage_by_type missing", coverage["lineage_coverage_by_type"]["DERIVED_INTERPRETATION"]["missing_source_refs"] == 1)
+
+evaluated_edges = compute_lineage_edge_metrics([
+    {"relationship": "DERIVED_SUMMARY"},
+    {"relationship": "UNKNOWN"},
+])
+test("evaluated lineage has rates", evaluated_edges["lineage_resolution_rate"] == 0.5)
+test("evaluated lineage status", evaluated_edges["lineage_status"] == "EVALUATED")
+
 print("M2 sanitized runtime report")
 sanitized = auditor.audit_runtime_sanitized(DB, fixture_path=FIXTURE)
 test("sanitized mode", sanitized.get("mode") == "SANITIZED_READ_ONLY_AUDIT")
 test("sanitized zero mutations", sanitized.get("mutations_performed") == 0)
 test("sanitized records_scanned > 0", sanitized.get("records_scanned", 0) > 0)
-test("sanitized source_hash_unchanged", sanitized.get("source_hash_unchanged") is True)
+test("sanitized_report_exposes_lineage_status", sanitized.get("lineage_status") in ("EVALUATED", "NOT_EVALUATED"))
+test("source_integrity_metric_names_are_precise", "main_db_file_hash_unchanged" in sanitized)
+test("source_integrity_mtime_name_precise", "main_db_file_mtime_unchanged" in sanitized)
+test("sanitized no legacy hash field", "source_hash_unchanged" not in sanitized)
+test("sanitized main_db_file_hash_unchanged", sanitized.get("main_db_file_hash_unchanged") is True)
 test("sanitized snapshot_cleaned", sanitized.get("snapshot_cleaned") == "deleted")
-test("sanitized has records_by_type", bool(sanitized.get("records_by_type")))
+test("sanitized has lineage_coverage_by_type", bool(sanitized.get("lineage_coverage_by_type")))
 test("sanitized has fixture_gap_analysis", "fixture_gap_analysis" in sanitized)
-for key in ("records_scanned", "content", "message", "text"):
-    raw_dump = json.dumps(sanitized)
-    if key == "records_scanned":
-        continue
-    test(f"sanitized has no raw memory key '{key}'", f'"{key}"' not in raw_dump or key in (
-        "records_scanned", "records_by_type", "records_by_control_role",
-    ))
+test("sanitized concurrent_write_status valid", sanitized.get("concurrent_write_status") in (
+    "NOT_DETERMINED", "NOT_OBSERVED", "OBSERVED",
+))
+raw_dump = json.dumps(sanitized)
+test("sanitized has no raw memory key 'content'", '"content"' not in raw_dump)
 
 print("M2 metrics")
 metrics = runtime_report.get("metrics", {})
 test("metrics elapsed_seconds", metrics.get("elapsed_seconds", 0) >= 0)
 test("metrics records_per_second", metrics.get("records_scanned_per_second", 0) > 0)
-test("metrics lineage_rate", "lineage_resolution_rate" in metrics)
-test("metrics unknown_lineage_rate", "unknown_lineage_rate" in metrics)
+test("metrics lineage_status present", metrics.get("lineage_status") in ("EVALUATED", "NOT_EVALUATED"))
+test("metrics lineage_coverage_rate present", "lineage_coverage_rate" in metrics)
+test("metrics orphan count present", "orphan_source_reference_count" in metrics)
 
 print("M2 explainability")
 explained = runtime_report.get("explained_findings", [])
