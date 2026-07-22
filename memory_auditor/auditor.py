@@ -7,15 +7,19 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from memory_auditor.adapters.life_engine import LifeEngineReadOnlyAdapter
 from memory_auditor.authority import check_authority_violations, resolve_scope_overlap
 from memory_auditor.claims import build_atomic_claims, validate_claim_isolation
 from memory_auditor.classifier import classify_all
+from memory_auditor.compare import compare_reports
 from memory_auditor.compression import audit_compression_candidates
-from memory_auditor.duplicates import detect_duplicates
+from memory_auditor.duplicates import detect_duplicates, detect_semantic_pattern_groups
+from memory_auditor.findings import build_explained_findings
 from memory_auditor.guard import ReadOnlyGuard
 from memory_auditor.identity import audit_identity_protection, identity_preservation_actions
 from memory_auditor.lineage import analyze_lineage
 from memory_auditor.merge_guard import audit_cross_type_merges
+from memory_auditor.metrics import MetricsTimer, compute_metrics
 from memory_auditor.permission import audit_permission_integrity
 from memory_auditor.report import generate_report
 from memory_auditor.retrieval import audit_retrieval_policy, query_routing_table
@@ -53,37 +57,89 @@ class ReadOnlyMemoryAuditor:
         meta = data.get("metadata", {})
         return records, edges, meta
 
+    def audit_runtime(
+        self,
+        db_path: str | Path,
+        being_id: str = "dioo-001",
+        compression_summary: str | None = None,
+    ) -> dict[str, Any]:
+        """Live read-only audit via DB snapshot — never writes to source."""
+        with LifeEngineReadOnlyAdapter(str(db_path), use_snapshot=True) as adapter:
+            records = adapter.extract_records(being_id)
+            snapshot_info = adapter.snapshot_info
+        return self.audit(
+            records,
+            explicit_edges=None,
+            compression_summary=compression_summary,
+            audit_source="runtime_snapshot",
+            snapshot_info=snapshot_info,
+        )
+
+    def compare_fixture_runtime(
+        self,
+        fixture_path: str | Path,
+        db_path: str | Path,
+        being_id: str = "dioo-001",
+    ) -> dict[str, Any]:
+        """Fixture → runtime snapshot → reports → difference."""
+        records, edges, meta = self.load_fixture(fixture_path)
+        fixture_report = self.audit(
+            records,
+            explicit_edges=edges,
+            compression_summary=meta.get("compression_summary"),
+            audit_source="fixture",
+        )
+        runtime_report = self.audit_runtime(db_path, being_id, meta.get("compression_summary"))
+        comparison = compare_reports(fixture_report, runtime_report)
+        return {
+            "mode": "READ_ONLY_COMPARISON_AUDIT",
+            "fixture_report": fixture_report,
+            "runtime_report": runtime_report,
+            "comparison": comparison,
+            "mutations_performed": 0,
+        }
+
     def audit(
         self,
         records: list[MemoryRecord],
         explicit_edges: list[LineageEdge] | None = None,
         compression_summary: str | None = None,
+        audit_source: str = "fixture",
+        snapshot_info: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         """Run full read-only audit on immutable record copy."""
-        records_copy = deepcopy(records)
-        classification = classify_all(records_copy)
-        lineage = analyze_lineage(records_copy, explicit_edges)
-        authority = check_authority_violations(records_copy)
-        duplicates = detect_duplicates(records_copy)
-        merge_blocks = audit_cross_type_merges(records_copy)
-        retrieval = audit_retrieval_policy(records_copy)
-        claims = build_atomic_claims(records_copy)
-        claim_violations = validate_claim_isolation(claims)
-        compression = []
-        if compression_summary:
-            compression = audit_compression_candidates(compression_summary, records_copy)
-        identity_risks = audit_identity_protection(records_copy)
-        identity_risks.extend(identity_preservation_actions(records_copy))
-        permission_risks = audit_permission_integrity(records_copy)
-        routing = self._build_routing_recommendations(records_copy)
-        routing_table = query_routing_table(records_copy)
+        with MetricsTimer() as timer:
+            records_copy = deepcopy(records)
+            classification = classify_all(records_copy)
+            lineage = analyze_lineage(records_copy, explicit_edges)
+            authority = check_authority_violations(records_copy)
+            duplicates = detect_duplicates(records_copy)
+            pattern_groups = detect_semantic_pattern_groups(records_copy)
+            merge_blocks = audit_cross_type_merges(records_copy)
+            retrieval = audit_retrieval_policy(records_copy)
+            claims = build_atomic_claims(records_copy)
+            claim_violations = validate_claim_isolation(claims)
+            compression = []
+            if compression_summary:
+                compression = audit_compression_candidates(compression_summary, records_copy)
+            identity_risks = audit_identity_protection(records_copy)
+            identity_risks.extend(identity_preservation_actions(records_copy))
+            permission_risks = audit_permission_integrity(records_copy)
+            routing = self._build_routing_recommendations(records_copy)
+            routing_table = query_routing_table(records_copy)
+            explained = build_explained_findings(
+                records_copy, authority, lineage, merge_blocks, retrieval,
+            )
+            metrics = compute_metrics(
+                records_copy, lineage, authority, duplicates, merge_blocks, timer.elapsed,
+            )
 
         report = generate_report(
             records_scanned=len(records_copy),
             classification_findings=classification,
             lineage_findings=lineage,
             authority_findings=authority + [{"claim_violations": claim_violations}],
-            duplicate_findings=duplicates,
+            duplicate_findings=duplicates + pattern_groups,
             cross_type_merge_blocks=merge_blocks,
             retrieval_policy_findings=retrieval + [{"query_routing": routing_table}],
             atomic_claim_candidates=[c.to_dict() for c in claims],
@@ -92,6 +148,10 @@ class ReadOnlyMemoryAuditor:
             permission_risks=permission_risks,
             recommended_routing=routing,
             guard=self.guard,
+            explained_findings=explained,
+            metrics=metrics,
+            snapshot_info=snapshot_info,
+            audit_source=audit_source,
         )
         report["scope_resolutions"] = self._scope_resolutions(records_copy)
         return report

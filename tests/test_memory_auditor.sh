@@ -10,7 +10,7 @@ python3 tests/test_memory_auditor.py
 
 echo "memory auditor CLI dry run (RT04 fixture)"
 OUT="/tmp/memory-auditor-rt04-report.json"
-python3 -m memory_auditor memory_auditor/fixtures/rt04.json -o "$OUT"
+python3 -m memory_auditor fixture memory_auditor/fixtures/rt04.json -o "$OUT"
 python3 -c "
 import json, sys
 r = json.load(open('$OUT'))

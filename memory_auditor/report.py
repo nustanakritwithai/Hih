@@ -24,6 +24,10 @@ def generate_report(
     guard: ReadOnlyGuard,
     human_review_required: bool = True,
     read_only_guarantee: bool = True,
+    explained_findings: list[dict] | None = None,
+    metrics: dict[str, Any] | None = None,
+    snapshot_info: dict[str, str] | None = None,
+    audit_source: str = "fixture",
 ) -> dict[str, Any]:
     if not read_only_guarantee or not guard.verify_zero_mutations():
         return {
@@ -32,8 +36,9 @@ def generate_report(
             "blocked_actions": guard.blocked_actions,
         }
 
-    return {
+    report: dict[str, Any] = {
         "mode": "READ_ONLY_MEMORY_AUDIT",
+        "audit_source": audit_source,
         "records_scanned": records_scanned,
         "classification_findings": classification_findings,
         "lineage_findings": lineage_findings,
@@ -46,7 +51,12 @@ def generate_report(
         "identity_risks": identity_risks,
         "permission_risks": permission_risks,
         "recommended_routing": recommended_routing,
+        "explained_findings": explained_findings or [],
+        "metrics": metrics or {},
         "blocked_actions": guard.blocked_actions,
         "human_review_required": human_review_required,
         "mutations_performed": 0,
     }
+    if snapshot_info:
+        report["snapshot_info"] = snapshot_info
+    return report

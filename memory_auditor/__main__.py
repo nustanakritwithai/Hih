@@ -12,18 +12,39 @@ from memory_auditor.auditor import ReadOnlyMemoryAuditor
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Dioo Read-Only Memory Auditor")
-    parser.add_argument("fixture", help="Path to fixture JSON")
-    parser.add_argument("--compression-summary", default=None, help="Optional summary to analyze")
-    parser.add_argument("--output", "-o", default=None, help="Write report JSON to file")
-    args = parser.parse_args(argv)
+    sub = parser.add_subparsers(dest="command", required=True)
 
+    fixture_p = sub.add_parser("fixture", help="Audit a fixture JSON file")
+    fixture_p.add_argument("path", help="Fixture path")
+    fixture_p.add_argument("--compression-summary", default=None)
+    fixture_p.add_argument("--output", "-o", default=None)
+
+    runtime_p = sub.add_parser("runtime", help="Read-only audit of Life Engine DB snapshot")
+    runtime_p.add_argument("--db", default="state/dioo.db", help="Source DB path (read-only snapshot)")
+    runtime_p.add_argument("--being-id", default="dioo-001")
+    runtime_p.add_argument("--output", "-o", default=None)
+
+    compare_p = sub.add_parser("compare", help="Compare fixture vs runtime snapshot")
+    compare_p.add_argument("fixture", help="Fixture path")
+    compare_p.add_argument("--db", default="state/dioo.db")
+    compare_p.add_argument("--being-id", default="dioo-001")
+    compare_p.add_argument("--output", "-o", default=None)
+
+    args = parser.parse_args(argv)
     auditor = ReadOnlyMemoryAuditor()
-    records, edges, meta = auditor.load_fixture(args.fixture)
-    report = auditor.audit(
-        records,
-        explicit_edges=edges,
-        compression_summary=args.compression_summary or meta.get("compression_summary"),
-    )
+
+    if args.command == "fixture":
+        records, edges, meta = auditor.load_fixture(args.path)
+        report = auditor.audit(
+            records,
+            explicit_edges=edges,
+            compression_summary=args.compression_summary or meta.get("compression_summary"),
+            audit_source="fixture",
+        )
+    elif args.command == "runtime":
+        report = auditor.audit_runtime(args.db, args.being_id)
+    else:
+        report = auditor.compare_fixture_runtime(args.fixture, args.db, args.being_id)
 
     out = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
@@ -31,9 +52,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(out)
 
-    if report.get("mode") == "FAILED_READ_ONLY_GUARANTEE":
-        return 2
-    if report.get("mutations_performed", 0) != 0:
+    mutations = report.get("mutations_performed", 0)
+    if report.get("mode") == "FAILED_READ_ONLY_GUARANTEE" or mutations != 0:
         return 2
     return 0
 

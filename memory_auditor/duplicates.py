@@ -71,6 +71,30 @@ def _semantic_overlap(a: str, b: str) -> bool:
     return overlap > 0.6
 
 
+def detect_semantic_pattern_groups(records: list) -> list[dict]:
+    """Group records by shared pattern clusters (beyond word overlap)."""
+    from memory_auditor.types import MemoryRecord
+
+    cluster_to_records: dict[str, list[str]] = {}
+    for record in records:
+        if not isinstance(record, MemoryRecord):
+            continue
+        for cluster in record.metadata.get("pattern_clusters", []):
+            cluster_to_records.setdefault(cluster, []).append(record.record_id)
+
+    findings: list[dict] = []
+    for cluster, ids in cluster_to_records.items():
+        if len(ids) < 2:
+            continue
+        findings.append({
+            "cluster": cluster,
+            "record_ids": ids,
+            "classification": "SEMANTIC_PATTERN_GROUP",
+            "note": "shared pattern despite low word overlap",
+        })
+    return findings
+
+
 def detect_duplicates(records: list[MemoryRecord]) -> list[dict]:
     findings: list[dict] = []
     for i, a in enumerate(records):
