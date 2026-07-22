@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from memory_auditor.auditor import ReadOnlyMemoryAuditor
+from memory_auditor.compare_runs import compare_shadow_runs
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,7 +38,21 @@ def main(argv: list[str] | None = None) -> int:
     sanitized_p.add_argument("--db", default="state/dioo.db")
     sanitized_p.add_argument("--being-id", default="dioo-001")
     sanitized_p.add_argument("--fixture", default=None, help="Optional fixture for gap analysis")
+    sanitized_p.add_argument("--run-id", default=None, help="Manual shadow audit run identifier")
+    sanitized_p.add_argument("--trigger-context", default=None, help="Human-readable trigger context")
     sanitized_p.add_argument("--output", "-o", default=None)
+
+    compare_runs_p = sub.add_parser(
+        "compare-runs",
+        help="Compare sanitized manual shadow audit reports (read-only)",
+    )
+    compare_runs_p.add_argument(
+        "reports",
+        nargs="+",
+        help="Sanitized report JSON paths in chronological order",
+    )
+    compare_runs_p.add_argument("--baseline-index", type=int, default=0)
+    compare_runs_p.add_argument("--output", "-o", default=None)
 
     args = parser.parse_args(argv)
     auditor = ReadOnlyMemoryAuditor()
@@ -57,7 +72,12 @@ def main(argv: list[str] | None = None) -> int:
             args.db,
             args.being_id,
             fixture_path=args.fixture,
+            run_id=args.run_id,
+            trigger_context=args.trigger_context,
         )
+    elif args.command == "compare-runs":
+        loaded = [json.loads(Path(path).read_text(encoding="utf-8")) for path in args.reports]
+        report = compare_shadow_runs(loaded, baseline_index=args.baseline_index)
     else:
         report = auditor.compare_fixture_runtime(args.fixture, args.db, args.being_id)
 
@@ -70,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
     mutations = report.get("mutations_performed", 0)
     if report.get("mode") == "FAILED_READ_ONLY_GUARANTEE" or mutations != 0:
         return 2
+    if report.get("stop_conditions", {}).get("trial_should_stop"):
+        return 3
     return 0
 
 
