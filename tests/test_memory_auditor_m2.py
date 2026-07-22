@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""Memory Auditor M2 tests — runtime snapshot, compare, metrics, hardening."""
+
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from memory_auditor import ReadOnlyMemoryAuditor
+from memory_auditor.adapters.life_engine import LifeEngineReadOnlyAdapter, _classify_event
+from memory_auditor.authority import resolve_scope_overlap
+from memory_auditor.guard import BlockedAction, ReadOnlyGuard, ReadOnlyViolation
+from memory_auditor.metrics import compute_lineage_coverage, compute_lineage_edge_metrics
+from memory_auditor.snapshot import cleanup_snapshot, create_readonly_snapshot, file_fingerprint
+from memory_auditor.types import ControlRole, MemoryRecord, MemoryType
+
+FIXTURE = ROOT / "memory_auditor" / "fixtures" / "rt04.json"
+DB = "/tmp/dioo-auditor-m2-test.db"
+
+passed = 0
+failed = 0
+
+
+def test(desc: str, cond: bool) -> None:
+    global passed, failed
+    if cond:
+        print(f"  ok   {desc}")
+        passed += 1
+    else:
+        print(f"  FAIL {desc}")
+        failed += 1
+
+
+def seed_db() -> None:
+    subprocess.run(["python3", "-m", "life_engine", "--db", DB, "init"], check=True, capture_output=True)
+    subprocess.run(["python3", "-m", "life_engine", "--db", DB, "awaken"], check=True, capture_output=True)
+    subprocess.run(
+        ["python3", "-m", "life_engine", "--db", DB, "perceive", "routine update สั้น ๆ พอ"],
+        check=True, capture_output=True,
+    )
+    subprocess.run(["python3", "-m", "life_engine", "--db", DB, "upgrade"], check=True, capture_output=True)
+
+
+def _wal_db() -> Path:
+    path = Path(tempfile.gettempdir()) / "dioo-auditor-wal-test.db"
+    for suffix in ("", "-wal", "-shm"):
+        p = Path(str(path) + suffix)
+        if p.exists():
+            p.unlink()
+    conn = sqlite3.connect(path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE audit_rows (id INTEGER PRIMARY KEY, v TEXT)")
+    conn.execute("INSERT INTO audit_rows (v) VALUES ('baseline')")
+    conn.commit()
+    conn.close()
+    return path
+
+
+print("M2 snapshot read-only")
+seed_db()
+snap = create_readonly_snapshot(DB)
+test("snapshot created", Path(snap.snapshot_path).exists())
+test("snapshot path differs from source", snap.snapshot_path != snap.source_path)
+test("snapshot uses backup API", snap.method == "sqlite_backup_api")
+test("source hash unchanged at snapshot", snap.source_hash_before == snap.source_hash_after)
+test("source mtime unchanged at snapshot", snap.source_mtime_before == snap.source_mtime_after)
+cleanup_result = cleanup_snapshot(snap)
+test("snapshot cleanup deletes file", cleanup_result == "deleted" and not Path(snap.snapshot_path).exists())
+
+print("M2 WAL consistency")
+wal_db = _wal_db()
+conn = sqlite3.connect(wal_db)
+conn.execute("INSERT INTO audit_rows (v) VALUES ('committed_wal')")
+conn.commit()
+conn.close()
+wal_snap = create_readonly_snapshot(wal_db)
+wal_conn = sqlite3.connect(wal_snap.read_only_uri, uri=True)
+wal_rows = [r[0] for r in wal_conn.execute("SELECT v FROM audit_rows ORDER BY id").fetchall()]
+wal_conn.close()
+test("snapshot_consistent_with_wal", len(wal_rows) == 2)
+test("snapshot_captures_committed_wal_rows", "committed_wal" in wal_rows)
+
+uncommitted_db = _wal_db()
+writer = sqlite3.connect(uncommitted_db)
+writer.execute("INSERT INTO audit_rows (v) VALUES ('uncommitted')")
+# deliberately no commit
+uncommitted_snap = create_readonly_snapshot(uncommitted_db)
+reader = sqlite3.connect(uncommitted_snap.read_only_uri, uri=True)
+uncommitted_rows = [r[0] for r in reader.execute("SELECT v FROM audit_rows ORDER BY id").fetchall()]
+reader.close()
+test("snapshot_excludes_uncommitted_transaction", "uncommitted" not in uncommitted_rows)
+writer.commit()
+writer.close()
+cleanup_snapshot(uncommitted_snap)
+cleanup_snapshot(wal_snap)
+
+print("M2 adapter lifecycle")
+hash_before, mtime_before = file_fingerprint(Path(DB))
+with LifeEngineReadOnlyAdapter(DB, use_snapshot=True) as adapter:
+    _ = adapter.extract_records()
+info = adapter.snapshot_info
+test("source_mtime_unchanged after audit", info["source_mtime_before"] == info["source_mtime_after"])
+test("source_hash_unchanged after audit", info["source_hash_before"] == info["source_hash_after"])
+hash_after, mtime_after = file_fingerprint(Path(DB))
+test("source file hash unchanged on disk", hash_before == hash_after)
+test("source file mtime unchanged on disk", mtime_before == mtime_after)
+test("snapshot cleaned on exit", info["cleanup_result"] == "deleted")
+test("snapshot file absent after exit", not Path(info["snapshot_path"]).exists())
+
+print("M2 forbidden permission authority")
+with LifeEngineReadOnlyAdapter(DB, use_snapshot=False) as adapter:
+    records = adapter.extract_records()
+forbidden = [
+    r for r in records
+    if r.memory_type == MemoryType.PERMISSION_RECORD and r.metadata.get("level") == "forbidden"
+]
+test("forbidden permissions exist", len(forbidden) >= 1)
+if forbidden:
+    f = forbidden[0]
+    test("forbidden status ACTIVE", f.status == "ACTIVE")
+    test("forbidden decision DENY", f.metadata.get("decision") == "DENY")
+    test("forbidden authority_for_behavior true", f.authority_for_behavior is True)
+    test("forbidden lineage incomplete", f.metadata.get("lineage_status") == "LEGACY_PERMISSION_LINEAGE_INCOMPLETE")
+
+print("M2 deny wins over broad allow")
+allow = MemoryRecord(
+    record_id="perm-allow-broad",
+    memory_type=MemoryType.PERMISSION_RECORD,
+    control_role=ControlRole.ACTION_AUTHORITY,
+    content="minor_wording=allowed",
+    domain="minor_wording",
+    scope="minor_wording",
+    status="ACTIVE",
+    authority_for_behavior=True,
+    metadata={"decision": "ALLOW", "level": "allowed"},
+)
+deny = MemoryRecord(
+    record_id="perm-deny-specific",
+    memory_type=MemoryType.PERMISSION_RECORD,
+    control_role=ControlRole.ACTION_AUTHORITY,
+    content="minor_wording=forbidden",
+    domain="minor_wording",
+    scope="minor_wording_notify",
+    status="ACTIVE",
+    authority_for_behavior=True,
+    metadata={"decision": "DENY", "level": "forbidden"},
+)
+ruling = resolve_scope_overlap("minor_wording", [allow, deny])
+test("deny_wins_over_broad_allow_in_overlap", ruling["ruling"] == "DENY_WINS_OVER_BROAD_ALLOW")
+test("deny winner selected", ruling["winner"] == deny.record_id)
+
+print("M2 event source classification")
+creator_role, creator_auth = _classify_event("USER_MESSAGE", {"text": "hi"})
+tool_role, tool_auth = _classify_event("TOOL_RESULT", {"output": "x"})
+agent_role, agent_auth = _classify_event("AGENT_ACTION", {"source": "dioo"})
+unknown_role, unknown_auth = _classify_event(None, {})
+test("creator event authoritative", creator_role == ControlRole.AUTHORITATIVE_SOURCE)
+test("tool event non-authoritative", tool_role == ControlRole.NON_AUTHORITATIVE)
+test("agent event historical", agent_role == ControlRole.HISTORICAL_RECORD)
+test("unknown event non-authoritative", unknown_role == ControlRole.NON_AUTHORITATIVE)
+test("not all events authoritative", creator_role != tool_role)
+
+print("M2 malformed JSON and missing tables")
+malformed_db = Path(tempfile.gettempdir()) / f"dioo-auditor-malformed-{os.getpid()}.db"
+for suffix in ("", "-wal", "-shm"):
+    p = Path(str(malformed_db) + suffix)
+    if p.exists():
+        p.unlink()
+subprocess.run(["python3", "-m", "life_engine", "--db", str(malformed_db), "init"], check=True, capture_output=True)
+subprocess.run(["python3", "-m", "life_engine", "--db", str(malformed_db), "awaken"], check=True, capture_output=True)
+mconn = sqlite3.connect(malformed_db)
+mconn.execute("UPDATE beings SET core_values = ? WHERE being_id = 'dioo-001'", ("{bad json",))
+mconn.execute("DROP TABLE IF EXISTS reflections")
+mconn.commit()
+mconn.close()
+with LifeEngineReadOnlyAdapter(str(malformed_db), use_snapshot=False) as bad_adapter:
+    bad_records = bad_adapter.extract_records()
+    errors = bad_adapter.adapter_errors
+test("malformed JSON produces adapter error", any(e.get("error") == "MALFORMED_JSON" for e in errors))
+test("missing reflections table handled", any(e.get("context") == "reflections" for e in errors))
+test("adapter still returns records on malformed JSON", len(bad_records) > 0)
+
+print("M2 runtime audit")
+auditor = ReadOnlyMemoryAuditor()
+runtime_report = auditor.audit_runtime(DB)
+test("runtime mode", runtime_report.get("audit_source") == "runtime_snapshot")
+test("runtime zero mutations", runtime_report.get("mutations_performed") == 0)
+test("runtime has snapshot_info", "snapshot_info" in runtime_report)
+test("runtime records > 0", runtime_report.get("records_scanned", 0) > 0)
+test("runtime has identity roots", any(
+    c.get("memory_type") == "IDENTITY_ROOT" for c in runtime_report.get("classification_findings", [])
+))
+events = [
+    c for c in runtime_report.get("classification_findings", [])
+    if c.get("memory_type") == "RAW_EVENT"
+]
+test("raw events present", len(events) > 0)
+test("event classification supports non-authoritative roles", tool_role != creator_role)
+
+print("M2 lineage metric validity")
+empty_edge_metrics = compute_lineage_edge_metrics([])
+test("empty_lineage_is_not_full_resolution", empty_edge_metrics["lineage_resolution_rate"] is None)
+test("empty_lineage_unknown_rate_null", empty_edge_metrics["unknown_lineage_rate"] is None)
+test("empty_lineage_status_not_evaluated", empty_edge_metrics["lineage_status"] == "NOT_EVALUATED")
+test("empty_lineage_edges_zero", empty_edge_metrics["lineage_edges_evaluated"] == 0)
+
+empty_runtime = auditor.audit([])
+test("runtime_lineage_not_evaluated_without_edges", empty_runtime["metrics"]["lineage_status"] == "NOT_EVALUATED")
+test("runtime_lineage_rate_null_without_edges", empty_runtime["metrics"]["lineage_resolution_rate"] is None)
+
+with_source = MemoryRecord(
+    record_id="E-src",
+    memory_type=MemoryType.RAW_EVENT,
+    control_role=ControlRole.AUTHORITATIVE_SOURCE,
+    content="source",
+    domain="test",
+)
+derived_ok = MemoryRecord(
+    record_id="S-ok",
+    memory_type=MemoryType.DERIVED_SUMMARY,
+    control_role=ControlRole.RETRIEVAL_CUE,
+    content="summary",
+    domain="test",
+    source_event_ids=("E-src",),
+)
+derived_missing = MemoryRecord(
+    record_id="S-miss",
+    memory_type=MemoryType.DERIVED_INTERPRETATION,
+    control_role=ControlRole.NON_AUTHORITATIVE,
+    content="interp",
+    domain="test",
+    source_event_ids=(),
+)
+derived_orphan = MemoryRecord(
+    record_id="S-orphan",
+    memory_type=MemoryType.BELIEF,
+    control_role=ControlRole.CANDIDATE_ONLY,
+    content="belief",
+    domain="belief",
+    source_event_ids=("MISSING-EVENT",),
+)
+coverage_records = [with_source, derived_ok, derived_missing, derived_orphan]
+coverage = compute_lineage_coverage(coverage_records)
+test("derived_source_ref_coverage total", coverage["derived_records_total"] == 3)
+test("derived_source_ref_coverage with refs", coverage["derived_records_with_source_refs"] == 1)
+test("missing_source_ref_is_lineage_gap", coverage["derived_records_missing_source_refs"] == 2)
+test("orphan_source_reference_detected", coverage["orphan_source_reference_count"] == 1)
+test("lineage_coverage_reported_by_type", coverage["lineage_coverage_by_type"]["DERIVED_SUMMARY"]["with_source_refs"] == 1)
+test("lineage_coverage_by_type missing", coverage["lineage_coverage_by_type"]["DERIVED_INTERPRETATION"]["missing_source_refs"] == 1)
+
+evaluated_edges = compute_lineage_edge_metrics([
+    {"relationship": "DERIVED_SUMMARY"},
+    {"relationship": "UNKNOWN"},
+])
+test("evaluated lineage has rates", evaluated_edges["lineage_resolution_rate"] == 0.5)
+test("evaluated lineage status", evaluated_edges["lineage_status"] == "EVALUATED")
+
+print("M2 sanitized runtime report")
+sanitized = auditor.audit_runtime_sanitized(DB, fixture_path=FIXTURE)
+test("sanitized mode", sanitized.get("mode") == "SANITIZED_READ_ONLY_AUDIT")
+test("sanitized zero mutations", sanitized.get("mutations_performed") == 0)
+test("sanitized records_scanned > 0", sanitized.get("records_scanned", 0) > 0)
+test("sanitized_report_exposes_lineage_status", sanitized.get("lineage_status") in ("EVALUATED", "NOT_EVALUATED"))
+test("source_integrity_metric_names_are_precise", "main_db_file_hash_unchanged" in sanitized)
+test("source_integrity_mtime_name_precise", "main_db_file_mtime_unchanged" in sanitized)
+test("sanitized no legacy hash field", "source_hash_unchanged" not in sanitized)
+test("sanitized main_db_file_hash_unchanged", sanitized.get("main_db_file_hash_unchanged") is True)
+test("sanitized snapshot_cleaned", sanitized.get("snapshot_cleaned") == "deleted")
+test("sanitized has lineage_coverage_by_type", bool(sanitized.get("lineage_coverage_by_type")))
+test("sanitized has fixture_gap_analysis", "fixture_gap_analysis" in sanitized)
+test("sanitized concurrent_write_status valid", sanitized.get("concurrent_write_status") in (
+    "NOT_DETERMINED", "NOT_OBSERVED", "OBSERVED",
+))
+raw_dump = json.dumps(sanitized)
+test("sanitized has no raw memory key 'content'", '"content"' not in raw_dump)
+
+print("M2 metrics")
+metrics = runtime_report.get("metrics", {})
+test("metrics elapsed_seconds", metrics.get("elapsed_seconds", 0) >= 0)
+test("metrics records_per_second", metrics.get("records_scanned_per_second", 0) > 0)
+test("metrics lineage_status present", metrics.get("lineage_status") in ("EVALUATED", "NOT_EVALUATED"))
+test("metrics lineage_coverage_rate present", "lineage_coverage_rate" in metrics)
+test("metrics orphan count present", "orphan_source_reference_count" in metrics)
+
+print("M2 explainability")
+explained = runtime_report.get("explained_findings", [])
+test("explained findings present", isinstance(explained, list))
+if explained:
+    test("finding has confidence", all("confidence" in f for f in explained if f.get("finding_type")))
+    test("finding has trace", all("trace" in f for f in explained if f.get("finding_type")))
+
+print("M2 compare fixture vs runtime")
+comparison = auditor.compare_fixture_runtime(FIXTURE, DB)
+test("compare mode", comparison.get("mode") == "READ_ONLY_COMPARISON_AUDIT")
+test("compare zero mutations", comparison.get("mutations_performed") == 0)
+comp = comparison.get("comparison", {})
+test("comparison has answers", "answers" in comp)
+test("comparison has gap analysis", "fixture_gap_analysis" in comp)
+test("fixture report present", comparison.get("fixture_report", {}).get("records_scanned", 0) >= 15)
+test("runtime report present", comparison.get("runtime_report", {}).get("records_scanned", 0) > 0)
+
+print("M2 retrieval path risks")
+eval_assets = [
+    c for c in runtime_report.get("classification_findings", [])
+    if c.get("memory_type") == "EVALUATION_ASSET"
+]
+test("runtime detects retrieval architecture risks", len(eval_assets) >= 1)
+
+print("M2 read-only guard still enforced")
+guard = ReadOnlyGuard()
+for action in BlockedAction:
+    try:
+        guard.assert_read_only(action)
+        test(f"guard blocks {action.value}", False)
+    except ReadOnlyViolation:
+        test(f"guard blocks {action.value}", True)
+
+print("M2 CLI subcommands")
+subprocess.run(
+    ["python3", "-m", "memory_auditor", "fixture", str(FIXTURE), "-o", "/tmp/m2-fixture.json"],
+    check=True, capture_output=True,
+)
+test("CLI fixture", Path("/tmp/m2-fixture.json").exists())
+subprocess.run(
+    ["python3", "-m", "memory_auditor", "runtime", "--db", DB, "-o", "/tmp/m2-runtime.json"],
+    check=True, capture_output=True,
+)
+test("CLI runtime", Path("/tmp/m2-runtime.json").exists())
+subprocess.run(
+    ["python3", "-m", "memory_auditor", "compare", str(FIXTURE), "--db", DB, "-o", "/tmp/m2-compare.json"],
+    check=True, capture_output=True,
+)
+test("CLI compare", Path("/tmp/m2-compare.json").exists())
+subprocess.run(
+    [
+        "python3", "-m", "memory_auditor", "runtime-sanitized",
+        "--db", DB, "--fixture", str(FIXTURE), "-o", "/tmp/m2-sanitized.json",
+    ],
+    check=True, capture_output=True,
+)
+test("CLI runtime-sanitized", Path("/tmp/m2-sanitized.json").exists())
+
+print(f"\n{passed} passed, {failed} failed")
+sys.exit(1 if failed else 0)

@@ -1,0 +1,43 @@
+{
+  "fixture_suite": "memory_auditor_m1",
+  "case_count": 27,
+  "categories": {
+    "permission_normalization": 5,
+    "summary_authority_violation": 5,
+    "cross_type_merge": 4,
+    "sibling_derivation": 3,
+    "stale_retrieval": 3,
+    "identity_retention": 2,
+    "atomic_provenance": 3,
+    "rt04_integration": 2
+  },
+  "cases": [
+    {"case_id": "perm_norm_01", "category": "permission_normalization", "fixture": "inline", "description": "E1->P1 lossless normalization"},
+    {"case_id": "perm_norm_02", "category": "permission_normalization", "fixture": "inline", "description": "E2->P2 notify_before scope"},
+    {"case_id": "perm_norm_03", "category": "permission_normalization", "fixture": "inline", "description": "P1 not duplicate of E1"},
+    {"case_id": "perm_norm_04", "category": "permission_normalization", "fixture": "inline", "description": "P2 preserves source_event_id"},
+    {"case_id": "perm_norm_05", "category": "permission_normalization", "fixture": "inline", "description": "lossless preserves scope"},
+    {"case_id": "sum_auth_01", "category": "summary_authority_violation", "fixture": "inline", "description": "S1 never action authority"},
+    {"case_id": "sum_auth_02", "category": "summary_authority_violation", "fixture": "inline", "description": "S2 never action authority"},
+    {"case_id": "sum_auth_03", "category": "summary_authority_violation", "fixture": "inline", "description": "summary with authority_for_behavior flagged"},
+    {"case_id": "sum_auth_04", "category": "summary_authority_violation", "fixture": "rt04", "description": "RT04 S1 stale for permission"},
+    {"case_id": "sum_auth_05", "category": "summary_authority_violation", "fixture": "inline", "description": "summary cannot override permission retrieval"},
+    {"case_id": "merge_01", "category": "cross_type_merge", "fixture": "rt04", "description": "P1+S1+R1+M1 blocked"},
+    {"case_id": "merge_02", "category": "cross_type_merge", "fixture": "rt04", "description": "P2+S2 blocked"},
+    {"case_id": "merge_03", "category": "cross_type_merge", "fixture": "rt04", "description": "F1+T1 blocked"},
+    {"case_id": "merge_04", "category": "cross_type_merge", "fixture": "rt04", "description": "Identity+operational blocked"},
+    {"case_id": "sibling_01", "category": "sibling_derivation", "fixture": "rt04", "description": "E1->P1 and E1->S1 siblings"},
+    {"case_id": "sibling_02", "category": "sibling_derivation", "fixture": "inline", "description": "shared source not causal"},
+    {"case_id": "sibling_03", "category": "sibling_derivation", "fixture": "inline", "description": "P2 S2 sibling from E2"},
+    {"case_id": "stale_01", "category": "stale_retrieval", "fixture": "rt04", "description": "F1 stale summary override"},
+    {"case_id": "stale_02", "category": "stale_retrieval", "fixture": "rt04", "description": "T1 regression active"},
+    {"case_id": "stale_03", "category": "stale_retrieval", "fixture": "rt04", "description": "S1 lower weight recommended"},
+    {"case_id": "identity_01", "category": "identity_retention", "fixture": "rt04", "description": "identity roots protected"},
+    {"case_id": "identity_02", "category": "identity_retention", "fixture": "inline", "description": "age-based retention flagged"},
+    {"case_id": "claim_01", "category": "atomic_provenance", "fixture": "rt04", "description": "Claim A isolated"},
+    {"case_id": "claim_02", "category": "atomic_provenance", "fixture": "rt04", "description": "Claim B isolated"},
+    {"case_id": "claim_03", "category": "atomic_provenance", "fixture": "rt04", "description": "Claims not cross-counted"},
+    {"case_id": "rt04_full", "category": "rt04_integration", "fixture": "rt04", "description": "Full RT04 dry run"},
+    {"case_id": "rt04_compression", "category": "rt04_integration", "fixture": "rt04", "description": "RT04 compression loss analysis"}
+  ]
+}

@@ -44,4 +44,12 @@ echo "==> creator delegation tests"
 bash tests/test_creator_delegation.sh
 
 echo
+echo "==> memory auditor M1 tests"
+bash tests/test_memory_auditor.sh
+
+echo
+echo "==> memory auditor M2 tests"
+python3 tests/test_memory_auditor_m2.py
+
+echo
 echo "all checks passed"

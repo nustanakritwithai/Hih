@@ -1,0 +1,70 @@
+{
+  "mode": "SANITIZED_READ_ONLY_AUDIT",
+  "records_scanned": 48,
+  "lineage_status": "EVALUATED",
+  "lineage_edges_evaluated": 11,
+  "derived_records_total": 17,
+  "derived_records_with_source_refs": 11,
+  "derived_records_missing_source_refs": 6,
+  "lineage_coverage_rate": 0.6471,
+  "lineage_coverage_by_type": {
+    "DERIVED_SUMMARY": {
+      "total": 11,
+      "with_source_refs": 11,
+      "missing_source_refs": 0
+    },
+    "DERIVED_INTERPRETATION": {
+      "total": 2,
+      "with_source_refs": 0,
+      "missing_source_refs": 2
+    },
+    "DERIVED_SELF_MODEL": {
+      "total": 3,
+      "with_source_refs": 0,
+      "missing_source_refs": 3
+    },
+    "BELIEF": {
+      "total": 1,
+      "with_source_refs": 0,
+      "missing_source_refs": 1
+    }
+  },
+  "orphan_source_reference_count": 0,
+  "lineage_resolution_rate": 1.0,
+  "unknown_lineage_rate": 0.0,
+  "main_db_file_hash_unchanged": true,
+  "main_db_file_mtime_unchanged": true,
+  "wal_present_before": false,
+  "wal_present_after": false,
+  "concurrent_write_status": "NOT_OBSERVED",
+  "summary_authority_rate": 0.0,
+  "permission_integrity_findings": [
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING",
+    "PERMISSION_SOURCE_MISSING"
+  ],
+  "adapter_errors": [],
+  "snapshot_method": "sqlite_backup_api",
+  "snapshot_cleaned": "deleted",
+  "fixture_gap_analysis": [
+    {
+      "finding_type": "PERMISSION_SOURCE_MISSING",
+      "recommendation": "add fixture case or RT04 extension",
+      "runtime_evidence": true
+    },
+    {
+      "finding_type": "RUNTIME_RECORD_VOLUME",
+      "recommendation": "fixture may not represent full runtime memory diversity",
+      "runtime_record_count": 48
+    }
+  ],
+  "mutations_performed": 0
+}
